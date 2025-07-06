@@ -1,6 +1,6 @@
 # smartsh
 
-A tiny cross-shell command runner that lets you use familiar Unix-style connectors (`&&`, `||`) on any OS or shell.
+A tiny cross-shell command runner that enables Unix-style commands and connectors (&&, ||) on any OS or shell, with automatic translation of common Unix commands to native PowerShell equivalents.
 
 ## Installation
 
@@ -19,10 +19,11 @@ smartsh "echo hello && echo world"
 
 ## How it works
 
-1. Detects your current shell **and** (for PowerShell) its version.
-2. If the shell natively supports `&&` / `||` (Bash, CMD, PowerShell 7+), the command is run unchanged.
-3. For legacy PowerShell (<7) the tool rewrites the command into an equivalent script that uses `$?` checks to faithfully emulate conditional execution.
-4. Executes the (possibly-translated) command, forwarding stdin/stdout/stderr and the exit code.
+1. Detects your current shell and (for PowerShell) its version.
+2. For PowerShell, translates common Unix commands (rm, mkdir, ls) to PowerShell equivalents.
+3. If the shell natively supports && / || (Bash, CMD, PowerShell 7+), the command is run unchanged.
+4. For legacy PowerShell (<7) the tool rewrites the command into an equivalent script that uses $? checks to faithfully emulate conditional execution.
+5. Executes the (possibly-translated) command, forwarding stdin/stdout/stderr and the exit code.
 
 ## Example on legacy PowerShell (<7)
 
@@ -50,3 +51,27 @@ The bundled output is generated at `dist/cli.js` and includes a shebang so it ca
 
 * `SMARTSH_SHELL` – manually set the shell type (`bash`, `cmd`, or `powershell`) if auto-detection is incorrect.
 * `SMARTSH_DEBUG=1` – enable verbose detection/debug logs. 
+
+# Supported Unix-style commands (translated on PowerShell)
+
+| Unix | Flags | PowerShell equivalent |
+|------|-------|----------------------|
+| rm   | -f, -r, -rf | Remove-Item (-Force / -Recurse) |
+| ls   | (none), -l, -la | Get-ChildItem (-Force) |
+| cp   | -r | Copy-Item -Recurse |
+| mv   | — | Move-Item |
+| mkdir| (none), -p | New-Item -ItemType Directory (-Force) |
+| touch| — | New-Item -ItemType File |
+| cat  | — | Get-Content |
+| grep | -i | Select-String (-CaseSensitive:$false) |
+| head | -n N / -N | Select-Object -First N |
+| tail | -n N / -N | Select-Object -Last N |
+| wc   | -l | Measure-Object -Line |
+
+Yes, that means one-liners like:
+
+```bash
+smartsh "ls -la | grep .js | head -10 > js.txt"
+```
+
+…will Just Work™ on PowerShell 5. 

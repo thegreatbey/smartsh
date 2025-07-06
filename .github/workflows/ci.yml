@@ -11,8 +11,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        node: [18]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: [18, 20]
     steps:
       - uses: actions/checkout@v4
 
@@ -27,6 +27,9 @@ jobs:
 
       - name: Build TypeScript
         run: npm run build
+
+      - name: Type check (lint)
+        run: npx tsc --noEmit
 
       - name: Run tests
         run: npm test

@@ -36,7 +36,53 @@ const LS_MAPPING: CommandMapping = {
   },
 };
 
-export const MAPPINGS: CommandMapping[] = [RM_MAPPING, MKDIR_MAPPING, LS_MAPPING];
+const CP_MAPPING: CommandMapping = {
+  unix: "cp",
+  ps: "Copy-Item",
+  flagMap: {
+    "-r": "-Recurse",
+    "-R": "-Recurse",
+    "-f": "-Force",
+    "-rf": "-Recurse -Force",
+    "-fr": "-Recurse -Force",
+  },
+  forceArgs: true,
+};
+
+const MV_MAPPING: CommandMapping = {
+  unix: "mv",
+  ps: "Move-Item",
+  flagMap: {},
+  forceArgs: true,
+};
+
+const TOUCH_MAPPING: CommandMapping = {
+  unix: "touch",
+  ps: "New-Item -ItemType File",
+  flagMap: {},
+  forceArgs: true,
+};
+
+const GREP_MAPPING: CommandMapping = {
+  unix: "grep",
+  ps: "Select-String",
+  flagMap: {
+    "-i": "-CaseSensitive:$false",
+    "-n": "-LineNumber",
+    "-in": "-CaseSensitive:$false -LineNumber",
+    "-ni": "-CaseSensitive:$false -LineNumber",
+  },
+  forceArgs: true,
+};
+
+const CAT_MAPPING: CommandMapping = {
+  unix: "cat",
+  ps: "Get-Content",
+  flagMap: {},
+  forceArgs: true,
+};
+
+export const MAPPINGS: CommandMapping[] = [RM_MAPPING, MKDIR_MAPPING, LS_MAPPING, CP_MAPPING, MV_MAPPING, TOUCH_MAPPING, GREP_MAPPING, CAT_MAPPING];
 
 // Simple tokenizer by whitespace, respecting quoted substrings
 function tokenize(segment: string): string[] {
@@ -74,6 +120,40 @@ export function translateSingleUnixSegment(segment: string): string {
   const tokens = tokenize(segment);
   if (tokens.length === 0) return segment;
   const cmd = tokens[0];
+
+  // Dynamic translations for head/tail/wc
+  if (cmd === "head" || cmd === "tail") {
+    let count: number | undefined;
+    // patterns: -10 or -n 10
+    for (let i = 1; i < tokens.length; i++) {
+      const tok = tokens[i];
+      if (/^-\d+$/.test(tok)) {
+        count = parseInt(tok.slice(1), 10);
+        break;
+      }
+      if (tok === "-n" && i + 1 < tokens.length) {
+        count = parseInt(tokens[i + 1], 10);
+        break;
+      }
+    }
+    if (!count || isNaN(count)) {
+      return segment; // unsupported pattern
+    }
+    const flag = cmd === "head" ? "-First" : "-Last";
+    const targetArgs = tokens.slice(1).filter((t) => {
+      if (t.startsWith("-")) return false;
+      if (t === String(count)) return false;
+      return true;
+    });
+    const psCmd = `Select-Object ${flag} ${count}`;
+    return [psCmd, ...targetArgs].join(" ");
+  }
+
+  if (cmd === "wc" && tokens.length >= 2 && tokens[1] === "-l") {
+    const restArgs = tokens.slice(2);
+    return ["Measure-Object -Line", ...restArgs].join(" ");
+  }
+
   const mapping = MAPPINGS.find((m) => m.unix === cmd);
   if (!mapping) return segment; // not a unix command we handle
 

@@ -131,7 +131,10 @@ export function translateCommand(command: string, shell: ShellInfo): string {
     // First translate any supported Unix commands inside each segment
     const parts = splitByConnectors(command).map((part) => {
       if (part === "&&" || part === "||") return part;
-      return translateSingleUnixSegment(part);
+      // Handle pipe-separated subsegments
+      const pipeParts = splitByPipe(part);
+      const translatedPipeParts = pipeParts.map(translateSingleUnixSegment);
+      return translatedPipeParts.join(" | ");
     });
     const unixTranslated = parts.join(" ");
 
@@ -218,6 +221,58 @@ function splitByConnectors(cmd: string): (string | "&&" | "||")[] {
   if (finalChunk) {
     parts.push(finalChunk);
   }
+  return parts;
+}
+
+// Split a string by unescaped, unquoted | characters.
+function splitByPipe(segment: string): string[] {
+  const parts: string[] = [];
+  let current = "";
+  let quote: "'" | "\"" | null = null;
+
+  for (let i = 0; i < segment.length; i++) {
+    const ch = segment[i];
+
+    if (quote) {
+      if (ch === "\\") {
+        current += ch;
+        if (i + 1 < segment.length) {
+          current += segment[i + 1];
+          i++;
+        }
+        continue;
+      }
+      if (ch === quote) {
+        quote = null;
+      }
+      current += ch;
+      continue;
+    }
+
+    if (ch === "'" || ch === "\"") {
+      quote = ch;
+      current += ch;
+      continue;
+    }
+
+    if (ch === "\\" || ch === "`") {
+      current += ch;
+      if (i + 1 < segment.length) {
+        current += segment[i + 1];
+        i++;
+      }
+      continue;
+    }
+
+    if (ch === "|") {
+      parts.push(current.trim());
+      current = "";
+      continue;
+    }
+
+    current += ch;
+  }
+  parts.push(current.trim());
   return parts;
 }
 

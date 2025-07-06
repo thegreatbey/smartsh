@@ -10,6 +10,7 @@
     "dev": "tsup --watch",
     "test": "vitest run",
     "bump:patch": "node scripts/bump-patch.js",
+    "lint": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
