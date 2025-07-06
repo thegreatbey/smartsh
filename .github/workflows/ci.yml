@@ -29,4 +29,43 @@ jobs:
         run: npm run build
 
       - name: Run tests
-        run: npm test 
+        run: npm test
+
+
+  bump:
+    name: Bump patch version if code changed
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Detect code changes
+        id: changes
+        run: |
+          git fetch origin
+          CHANGED=$(git diff --name-only origin/${{ github.ref_name }}..HEAD | grep -E '\.(ts|js|tsx)$' || true)
+          if [ -n "$CHANGED" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Bump patch and push
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          npm ci
+          npm run bump:patch
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git commit -am "chore: bump patch [skip ci]"
+          git push origin HEAD:${{ github.ref_name }} 

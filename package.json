@@ -1,6 +1,6 @@
 {
   "name": "smartsh",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Cross-shell command runner enabling Unix-style syntax on any OS.",
   "bin": {
     "smartsh": "dist/cli.js"
@@ -9,6 +9,7 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest run",
+    "bump:patch": "node scripts/bump-patch.js",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
