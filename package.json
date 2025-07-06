@@ -1,0 +1,31 @@
+{
+  "name": "smartsh",
+  "version": "0.1.0",
+  "description": "Cross-shell command runner enabling Unix-style syntax on any OS.",
+  "bin": {
+    "smartsh": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "cli",
+    "shell",
+    "cross-platform",
+    "powershell",
+    "cmd",
+    "bash"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=14"
+  },
+  "devDependencies": {
+    "tsup": "^7.2.0",
+    "typescript": "^5.4.0",
+    "vitest": "^3.2.4"
+  }
+}
