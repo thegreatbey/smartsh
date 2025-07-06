@@ -17,9 +17,13 @@
     "cli",
     "shell",
     "cross-platform",
+    "command-runner",
     "powershell",
     "cmd",
-    "bash"
+    "bash",
+    "unix-commands",
+    "pipeline",
+    "npm-exec"
   ],
   "license": "MIT",
   "engines": {
