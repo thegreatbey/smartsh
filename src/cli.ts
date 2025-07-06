@@ -14,11 +14,11 @@ function runInShell(shellInfo: ReturnType<typeof detectShell>, command: string):
       stdio: "inherit",
     });
 
-    child.on("error", (err) => {
+    child.on("error", (err: Error) => {
       console.error(`${TOOL_NAME}: Failed to start command:`, err);
     });
 
-    child.on("exit", (code, signal) => {
+    child.on("exit", (code: number | null, signal: NodeJS.Signals | null) => {
       if (signal) process.kill(process.pid, signal);
       else process.exit(code ?? 0);
     });
@@ -36,11 +36,11 @@ function runInShell(shellInfo: ReturnType<typeof detectShell>, command: string):
     stdio: "inherit",
   });
 
-  child.on("error", (err) => {
+  child.on("error", (err: Error) => {
     console.error(`${TOOL_NAME}: Failed to start command:`, err);
   });
 
-  child.on("exit", (code, signal) => {
+  child.on("exit", (code: number | null, signal: NodeJS.Signals | null) => {
     if (signal) process.kill(process.pid, signal);
     else process.exit(code ?? 0);
   });
