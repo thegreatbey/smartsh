@@ -1,4 +1,4 @@
-# smartsh
+# smartsh (alias: `sm`)
 
 A tiny cross-shell command runner that enables Unix-style commands and connectors (&&, ||) on any OS or shell, with automatic translation of common Unix commands to native PowerShell equivalents.
 
@@ -7,13 +7,21 @@ A tiny cross-shell command runner that enables Unix-style commands and connector
 Use with `npx` (no install):
 
 ```bash
+# Long name
 npx smartsh "echo hello && echo world"
+
+# Shorthand alias (same behaviour)
+npx sm "echo hello && echo world"
 ```
 
 Or install globally:
 
 ```bash
+# Installs both `smartsh` and `sm` binaries
 npm install -g smartsh
+
+# Use either name
+sm "echo hello && echo world"
 smartsh "echo hello && echo world"
 ```
 
@@ -27,8 +35,9 @@ smartsh "echo hello && echo world"
 
 ## Example on legacy PowerShell (<7)
 
+# Using the shorthand in PowerShell
 ```powershell
-> smartsh "echo ok && echo still-ok || echo failed"
+> sm "echo ok && echo still-ok || echo failed"
 # Internally runs something like:
 #   echo ok; if ($?) { echo still-ok } ; if (-not $?) { echo failed }
 ```
@@ -71,7 +80,7 @@ The bundled output is generated at `dist/cli.js` and includes a shebang so it ca
 Yes, that means one-liners like:
 
 ```bash
-smartsh "ls -la | grep .js | head -10 > js.txt"
+sm "ls -la | grep .js | head -10 > js.txt"
 ```
 
 …will Just Work™ on PowerShell 5. 

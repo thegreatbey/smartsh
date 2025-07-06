@@ -1,5 +1,10 @@
 import { detectShell, translateCommand } from "./translate";
+import path from "node:path";
 import { spawn } from "child_process";
+
+// Determine the actual invoked binary name so that error/help messages
+// correctly display either "smartsh" or its alias "sm".
+const TOOL_NAME = path.basename(process.argv[1] ?? "smartsh");
 
 function runInShell(shellInfo: ReturnType<typeof detectShell>, command: string): void {
   if (shellInfo.type === "powershell") {
@@ -10,7 +15,7 @@ function runInShell(shellInfo: ReturnType<typeof detectShell>, command: string):
     });
 
     child.on("error", (err) => {
-      console.error("smartsh: Failed to start command:", err);
+      console.error(`${TOOL_NAME}: Failed to start command:`, err);
     });
 
     child.on("exit", (code, signal) => {
@@ -32,7 +37,7 @@ function runInShell(shellInfo: ReturnType<typeof detectShell>, command: string):
   });
 
   child.on("error", (err) => {
-    console.error("smartsh: Failed to start command:", err);
+    console.error(`${TOOL_NAME}: Failed to start command:`, err);
   });
 
   child.on("exit", (code, signal) => {
@@ -45,7 +50,7 @@ function main() {
   const args = process.argv.slice(2);
 
   if (args.length === 0) {
-    console.error("smartsh: No command provided. Usage: smartsh \"echo hello && echo world\"");
+    console.error(`${TOOL_NAME}: No command provided. Usage: ${TOOL_NAME} \"echo hello && echo world\"`);
     process.exit(1);
   }
 

@@ -1,9 +1,10 @@
 {
   "name": "smartsh",
-  "version": "0.1.1",
+  "version": "0.2.1",
   "description": "Cross-shell command runner enabling Unix-style syntax on any OS.",
   "bin": {
-    "smartsh": "dist/cli.js"
+    "smartsh": "dist/cli.js",
+    "sm": "dist/cli.js"
   },
   "scripts": {
     "build": "tsup",

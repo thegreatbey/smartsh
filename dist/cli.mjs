@@ -14,10 +14,176 @@ var __commonJS = (cb, mod) => function __require2() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
 
+// src/unixMappings.ts
+function tokenize(segment) {
+  const tokens = [];
+  let current = "";
+  let quote = null;
+  for (let i = 0; i < segment.length; i++) {
+    const ch = segment[i];
+    if (quote) {
+      current += ch;
+      if (ch === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+      current += ch;
+      continue;
+    }
+    if (/\s/.test(ch)) {
+      if (current) {
+        tokens.push(current);
+        current = "";
+      }
+      continue;
+    }
+    current += ch;
+  }
+  if (current)
+    tokens.push(current);
+  return tokens;
+}
+function translateSingleUnixSegment(segment) {
+  const tokens = tokenize(segment);
+  if (tokens.length === 0)
+    return segment;
+  const cmd = tokens[0];
+  if (cmd === "head" || cmd === "tail") {
+    let count;
+    for (let i = 1; i < tokens.length; i++) {
+      const tok = tokens[i];
+      if (/^-\d+$/.test(tok)) {
+        count = parseInt(tok.slice(1), 10);
+        break;
+      }
+      if (tok === "-n" && i + 1 < tokens.length) {
+        count = parseInt(tokens[i + 1], 10);
+        break;
+      }
+    }
+    if (!count || isNaN(count)) {
+      return segment;
+    }
+    const flag = cmd === "head" ? "-First" : "-Last";
+    const targetArgs = tokens.slice(1).filter((t) => {
+      if (t.startsWith("-"))
+        return false;
+      if (t === String(count))
+        return false;
+      return true;
+    });
+    const psCmd = `Select-Object ${flag} ${count}`;
+    return [psCmd, ...targetArgs].join(" ");
+  }
+  if (cmd === "wc" && tokens.length >= 2 && tokens[1] === "-l") {
+    const restArgs = tokens.slice(2);
+    return ["Measure-Object -Line", ...restArgs].join(" ");
+  }
+  const mapping = MAPPINGS.find((m) => m.unix === cmd);
+  if (!mapping)
+    return segment;
+  const flagTokens = tokens.slice(1).filter((t) => t.startsWith("-"));
+  const argTokens = tokens.slice(1).filter((t) => !t.startsWith("-"));
+  let psFlags = "";
+  for (const flagTok of flagTokens) {
+    const mapped = mapping.flagMap[flagTok];
+    if (mapped !== void 0) {
+      if (mapped)
+        psFlags += " " + mapped;
+    } else {
+      return segment;
+    }
+  }
+  if (mapping.forceArgs && argTokens.length === 0) {
+    return segment;
+  }
+  const psCommand = `${mapping.ps}${psFlags}`.trim();
+  return [psCommand, ...argTokens].join(" ");
+}
+var RM_MAPPING, MKDIR_MAPPING, LS_MAPPING, CP_MAPPING, MV_MAPPING, TOUCH_MAPPING, GREP_MAPPING, CAT_MAPPING, MAPPINGS;
+var init_unixMappings = __esm({
+  "src/unixMappings.ts"() {
+    "use strict";
+    RM_MAPPING = {
+      unix: "rm",
+      ps: "Remove-Item",
+      flagMap: {
+        "-rf": "-Recurse -Force",
+        "-fr": "-Recurse -Force",
+        "-r": "-Recurse",
+        "-f": "-Force"
+      },
+      forceArgs: true
+    };
+    MKDIR_MAPPING = {
+      unix: "mkdir",
+      ps: "New-Item -ItemType Directory",
+      flagMap: {
+        "-p": "-Force"
+      }
+    };
+    LS_MAPPING = {
+      unix: "ls",
+      ps: "Get-ChildItem",
+      flagMap: {
+        "-la": "-Force",
+        "-al": "-Force",
+        "-a": "-Force",
+        "-l": ""
+      }
+    };
+    CP_MAPPING = {
+      unix: "cp",
+      ps: "Copy-Item",
+      flagMap: {
+        "-r": "-Recurse",
+        "-R": "-Recurse",
+        "-f": "-Force",
+        "-rf": "-Recurse -Force",
+        "-fr": "-Recurse -Force"
+      },
+      forceArgs: true
+    };
+    MV_MAPPING = {
+      unix: "mv",
+      ps: "Move-Item",
+      flagMap: {},
+      forceArgs: true
+    };
+    TOUCH_MAPPING = {
+      unix: "touch",
+      ps: "New-Item -ItemType File",
+      flagMap: {},
+      forceArgs: true
+    };
+    GREP_MAPPING = {
+      unix: "grep",
+      ps: "Select-String",
+      flagMap: {
+        "-i": "-CaseSensitive:$false",
+        "-n": "-LineNumber",
+        "-in": "-CaseSensitive:$false -LineNumber",
+        "-ni": "-CaseSensitive:$false -LineNumber"
+      },
+      forceArgs: true
+    };
+    CAT_MAPPING = {
+      unix: "cat",
+      ps: "Get-Content",
+      flagMap: {},
+      forceArgs: true
+    };
+    MAPPINGS = [RM_MAPPING, MKDIR_MAPPING, LS_MAPPING, CP_MAPPING, MV_MAPPING, TOUCH_MAPPING, GREP_MAPPING, CAT_MAPPING];
+  }
+});
+
 // src/translate.ts
 function debugLog(...args) {
   if (DEBUG) {
-    console.log("[smartsh debug]", ...args);
+    console.log("[smartsh/sm debug]", ...args);
   }
 }
 function getPowerShellVersionSync() {
@@ -95,13 +261,21 @@ function detectShell() {
   return { type: "bash", supportsConditionalConnectors: true };
 }
 function translateCommand(command, shell) {
-  if (shell.supportsConditionalConnectors) {
-    return command;
+  if (shell.type === "powershell") {
+    const parts = splitByConnectors(command).map((part) => {
+      if (part === "&&" || part === "||")
+        return part;
+      const pipeParts = splitByPipe(part);
+      const translatedPipeParts = pipeParts.map(translateSingleUnixSegment);
+      return translatedPipeParts.join(" | ");
+    });
+    const unixTranslated = parts.join(" ");
+    if (shell.supportsConditionalConnectors) {
+      return unixTranslated;
+    }
+    return translateForLegacyPowerShell(unixTranslated);
   }
-  if (shell.type !== "powershell") {
-    return command;
-  }
-  return translateForLegacyPowerShell(command);
+  return command;
 }
 function splitByConnectors(cmd) {
   const parts = [];
@@ -127,6 +301,14 @@ function splitByConnectors(cmd) {
     if (ch === "'" || ch === '"') {
       quote = ch;
       current += ch;
+      continue;
+    }
+    if (ch === "\\" || ch === "`") {
+      current += ch;
+      if (i + 1 < cmd.length) {
+        current += cmd[i + 1];
+        i++;
+      }
       continue;
     }
     const next = cmd[i + 1];
@@ -158,6 +340,50 @@ function splitByConnectors(cmd) {
   }
   return parts;
 }
+function splitByPipe(segment) {
+  const parts = [];
+  let current = "";
+  let quote = null;
+  for (let i = 0; i < segment.length; i++) {
+    const ch = segment[i];
+    if (quote) {
+      if (ch === "\\") {
+        current += ch;
+        if (i + 1 < segment.length) {
+          current += segment[i + 1];
+          i++;
+        }
+        continue;
+      }
+      if (ch === quote) {
+        quote = null;
+      }
+      current += ch;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+      current += ch;
+      continue;
+    }
+    if (ch === "\\" || ch === "`") {
+      current += ch;
+      if (i + 1 < segment.length) {
+        current += segment[i + 1];
+        i++;
+      }
+      continue;
+    }
+    if (ch === "|") {
+      parts.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  parts.push(current.trim());
+  return parts;
+}
 function translateForLegacyPowerShell(command) {
   const tokens = splitByConnectors(command);
   if (tokens.length === 0)
@@ -178,16 +404,19 @@ var _a, OVERRIDE_SHELL, DEBUG;
 var init_translate = __esm({
   "src/translate.ts"() {
     "use strict";
+    init_unixMappings();
     OVERRIDE_SHELL = (_a = process.env.SMARTSH_SHELL) == null ? void 0 : _a.toLowerCase();
     DEBUG = process.env.SMARTSH_DEBUG === "1" || process.env.SMARTSH_DEBUG === "true";
   }
 });
 
 // src/cli.ts
+import path from "path";
 import { spawn } from "child_process";
 var require_cli = __commonJS({
   "src/cli.ts"(exports, module) {
     init_translate();
+    var TOOL_NAME = path.basename(process.argv[1] ?? "smartsh");
     function runInShell(shellInfo, command) {
       if (shellInfo.type === "powershell") {
         const exe = shellInfo.version && shellInfo.version >= 7 ? "pwsh" : "powershell";
@@ -195,7 +424,7 @@ var require_cli = __commonJS({
           stdio: "inherit"
         });
         child2.on("error", (err) => {
-          console.error("smartsh: Failed to start command:", err);
+          console.error(`${TOOL_NAME}: Failed to start command:`, err);
         });
         child2.on("exit", (code, signal) => {
           if (signal)
@@ -214,7 +443,7 @@ var require_cli = __commonJS({
         stdio: "inherit"
       });
       child.on("error", (err) => {
-        console.error("smartsh: Failed to start command:", err);
+        console.error(`${TOOL_NAME}: Failed to start command:`, err);
       });
       child.on("exit", (code, signal) => {
         if (signal)
@@ -226,7 +455,7 @@ var require_cli = __commonJS({
     function main() {
       const args = process.argv.slice(2);
       if (args.length === 0) {
-        console.error('smartsh: No command provided. Usage: smartsh "echo hello && echo world"');
+        console.error(`${TOOL_NAME}: No command provided. Usage: ${TOOL_NAME} "echo hello && echo world"`);
         process.exit(1);
       }
       const originalCommand = args.join(" ");

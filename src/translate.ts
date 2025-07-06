@@ -21,7 +21,7 @@ const DEBUG = process.env.SMARTSH_DEBUG === "1" || process.env.SMARTSH_DEBUG ===
 function debugLog(...args: unknown[]) {
   if (DEBUG) {
     // eslint-disable-next-line no-console
-    console.log("[smartsh debug]", ...args);
+    console.log("[smartsh/sm debug]", ...args);
   }
 }
 
