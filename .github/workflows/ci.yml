@@ -1,5 +1,8 @@
 name: CI
 
+permissions:
+  contents: write
+
 on:
   push:
     branches: [main, master]
@@ -55,13 +58,21 @@ jobs:
       - name: Detect code changes
         id: changes
         run: |
-          git fetch origin
-          CHANGED=$(git diff --name-only origin/${{ github.ref_name }}..HEAD | grep -E '\.(ts|js|tsx)$' || true)
-          if [ -n "$CHANGED" ]; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-          else
+          # Ensure we have at least the previous commit available
+          git fetch --prune --unshallow || true
+          # Compare current commit (HEAD) with the previous one (HEAD~1)
+          if git diff --quiet HEAD~1 HEAD -- src/ package.json tsconfig.json tsup.config.ts; then
+            echo "No relevant source changes detected"
             echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "Source code changes detected"
+            git diff --name-only HEAD~1 HEAD -- src/ package.json tsconfig.json tsup.config.ts
+            echo "changed=true" >> $GITHUB_OUTPUT
           fi
+
+      - name: Build TypeScript (sanity-check before version bump)
+        if: steps.changes.outputs.changed == 'true'
+        run: npm run build
 
       - name: Bump patch, tag and push
         if: steps.changes.outputs.changed == 'true'
