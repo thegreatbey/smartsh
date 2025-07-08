@@ -93,7 +93,103 @@ var CAT_MAPPING = {
   flagMap: {},
   forceArgs: true
 };
-var MAPPINGS = [RM_MAPPING, MKDIR_MAPPING, LS_MAPPING, CP_MAPPING, MV_MAPPING, TOUCH_MAPPING, GREP_MAPPING, CAT_MAPPING];
+var WHICH_MAPPING = {
+  unix: "which",
+  ps: "Get-Command",
+  flagMap: {},
+  forceArgs: true
+};
+var SORT_MAPPING = {
+  unix: "sort",
+  ps: "Sort-Object",
+  flagMap: {},
+  forceArgs: false
+};
+var UNIQ_MAPPING = {
+  unix: "uniq",
+  ps: "Select-Object -Unique",
+  flagMap: {},
+  forceArgs: false
+};
+var FIND_MAPPING = {
+  unix: "find",
+  ps: "Get-ChildItem -Recurse",
+  flagMap: {
+    "-name": "-Filter",
+    // maps -name pattern
+    "-type": ""
+    // we ignore -type for now
+  },
+  forceArgs: true
+};
+var PWD_MAPPING = {
+  unix: "pwd",
+  ps: "Get-Location",
+  flagMap: {},
+  forceArgs: false
+};
+var DATE_MAPPING = {
+  unix: "date",
+  ps: "Get-Date",
+  flagMap: {},
+  forceArgs: false
+};
+var CLEAR_MAPPING = {
+  unix: "clear",
+  ps: "Clear-Host",
+  flagMap: {},
+  forceArgs: false
+};
+var PS_MAPPING = {
+  unix: "ps",
+  ps: "Get-Process",
+  flagMap: {},
+  forceArgs: false
+};
+var KILL_MAPPING = {
+  unix: "kill",
+  ps: "Stop-Process",
+  flagMap: {
+    "-9": "-Force"
+  },
+  forceArgs: true
+};
+var DF_MAPPING = {
+  unix: "df",
+  ps: "Get-PSDrive",
+  flagMap: {
+    "-h": ""
+    // human-readable not needed
+  },
+  forceArgs: false
+};
+var HOSTNAME_MAPPING = {
+  unix: "hostname",
+  ps: "$env:COMPUTERNAME",
+  flagMap: {},
+  forceArgs: false
+};
+var MAPPINGS = [
+  RM_MAPPING,
+  MKDIR_MAPPING,
+  LS_MAPPING,
+  CP_MAPPING,
+  MV_MAPPING,
+  TOUCH_MAPPING,
+  GREP_MAPPING,
+  CAT_MAPPING,
+  WHICH_MAPPING,
+  SORT_MAPPING,
+  UNIQ_MAPPING,
+  FIND_MAPPING,
+  PWD_MAPPING,
+  DATE_MAPPING,
+  CLEAR_MAPPING,
+  PS_MAPPING,
+  KILL_MAPPING,
+  DF_MAPPING,
+  HOSTNAME_MAPPING
+];
 function tokenize(segment) {
   const tokens = [];
   let current = "";
@@ -121,14 +217,12 @@ function tokenize(segment) {
     }
     current += ch;
   }
-  if (current)
-    tokens.push(current);
+  if (current) tokens.push(current);
   return tokens;
 }
 function translateSingleUnixSegment(segment) {
   const tokens = tokenize(segment);
-  if (tokens.length === 0)
-    return segment;
+  if (tokens.length === 0) return segment;
   const cmd = tokens[0];
   if (cmd === "head" || cmd === "tail") {
     let count;
@@ -148,10 +242,8 @@ function translateSingleUnixSegment(segment) {
     }
     const flag = cmd === "head" ? "-First" : "-Last";
     const targetArgs = tokens.slice(1).filter((t) => {
-      if (t.startsWith("-"))
-        return false;
-      if (t === String(count))
-        return false;
+      if (t.startsWith("-")) return false;
+      if (t === String(count)) return false;
       return true;
     });
     const psCmd = `Select-Object ${flag} ${count}`;
@@ -161,17 +253,24 @@ function translateSingleUnixSegment(segment) {
     const restArgs = tokens.slice(2);
     return ["Measure-Object -Line", ...restArgs].join(" ");
   }
+  if (cmd === "sleep" && tokens.length >= 2) {
+    const duration = tokens[1];
+    if (/^\d+$/.test(duration)) {
+      return `Start-Sleep ${duration}`;
+    }
+  }
+  if (cmd === "whoami") {
+    return "$env:USERNAME";
+  }
   const mapping = MAPPINGS.find((m) => m.unix === cmd);
-  if (!mapping)
-    return segment;
+  if (!mapping) return segment;
   const flagTokens = tokens.slice(1).filter((t) => t.startsWith("-"));
   const argTokens = tokens.slice(1).filter((t) => !t.startsWith("-"));
   let psFlags = "";
   for (const flagTok of flagTokens) {
     const mapped = mapping.flagMap[flagTok];
     if (mapped !== void 0) {
-      if (mapped)
-        psFlags += " " + mapped;
+      if (mapped) psFlags += " " + mapped;
     } else {
       return segment;
     }
@@ -269,8 +368,7 @@ function detectShell() {
 function translateCommand(command, shell) {
   if (shell.type === "powershell") {
     const parts = splitByConnectors(command).map((part) => {
-      if (part === "&&" || part === "||")
-        return part;
+      if (part === "&&" || part === "||") return part;
       const pipeParts = splitByPipe(part);
       const translatedPipeParts = pipeParts.map(translateSingleUnixSegment);
       return translatedPipeParts.join(" | ");
@@ -392,8 +490,7 @@ function splitByPipe(segment) {
 }
 function translateForLegacyPowerShell(command) {
   const tokens = splitByConnectors(command);
-  if (tokens.length === 0)
-    return command;
+  if (tokens.length === 0) return command;
   let script = tokens[0];
   for (let i = 1; i < tokens.length; i += 2) {
     const connector = tokens[i];
@@ -421,10 +518,8 @@ function runInShell(shellInfo, command) {
       console.error(`${TOOL_NAME}: Failed to start command:`, err);
     });
     child2.on("exit", (code, signal) => {
-      if (signal)
-        process.kill(process.pid, signal);
-      else
-        process.exit(code ?? 0);
+      if (signal) process.kill(process.pid, signal);
+      else process.exit(code ?? 0);
     });
     return;
   }
@@ -440,10 +535,8 @@ function runInShell(shellInfo, command) {
     console.error(`${TOOL_NAME}: Failed to start command:`, err);
   });
   child.on("exit", (code, signal) => {
-    if (signal)
-      process.kill(process.pid, signal);
-    else
-      process.exit(code ?? 0);
+    if (signal) process.kill(process.pid, signal);
+    else process.exit(code ?? 0);
   });
 }
 function main() {
