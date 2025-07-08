@@ -82,7 +82,93 @@ const CAT_MAPPING: CommandMapping = {
   forceArgs: true,
 };
 
-export const MAPPINGS: CommandMapping[] = [RM_MAPPING, MKDIR_MAPPING, LS_MAPPING, CP_MAPPING, MV_MAPPING, TOUCH_MAPPING, GREP_MAPPING, CAT_MAPPING];
+const WHICH_MAPPING: CommandMapping = {
+  unix: "which",
+  ps: "Get-Command",
+  flagMap: {},
+  forceArgs: true,
+};
+
+const SORT_MAPPING: CommandMapping = {
+  unix: "sort",
+  ps: "Sort-Object",
+  flagMap: {},
+  forceArgs: false,
+};
+
+const UNIQ_MAPPING: CommandMapping = {
+  unix: "uniq",
+  ps: "Select-Object -Unique",
+  flagMap: {},
+  forceArgs: false,
+};
+
+const FIND_MAPPING: CommandMapping = {
+  unix: "find",
+  ps: "Get-ChildItem -Recurse",
+  flagMap: {
+    "-name": "-Filter", // maps -name pattern
+    "-type": "", // we ignore -type for now
+  },
+  forceArgs: true,
+};
+
+const PWD_MAPPING: CommandMapping = {
+  unix: "pwd",
+  ps: "Get-Location",
+  flagMap: {},
+  forceArgs: false,
+};
+
+const DATE_MAPPING: CommandMapping = {
+  unix: "date",
+  ps: "Get-Date",
+  flagMap: {},
+  forceArgs: false,
+};
+
+const CLEAR_MAPPING: CommandMapping = {
+  unix: "clear",
+  ps: "Clear-Host",
+  flagMap: {},
+  forceArgs: false,
+};
+
+const PS_MAPPING: CommandMapping = {
+  unix: "ps",
+  ps: "Get-Process",
+  flagMap: {},
+  forceArgs: false,
+};
+
+const KILL_MAPPING: CommandMapping = {
+  unix: "kill",
+  ps: "Stop-Process",
+  flagMap: {
+    "-9": "-Force",
+  },
+  forceArgs: true,
+};
+
+export const MAPPINGS: CommandMapping[] = [
+  RM_MAPPING,
+  MKDIR_MAPPING,
+  LS_MAPPING,
+  CP_MAPPING,
+  MV_MAPPING,
+  TOUCH_MAPPING,
+  GREP_MAPPING,
+  CAT_MAPPING,
+  WHICH_MAPPING,
+  SORT_MAPPING,
+  UNIQ_MAPPING,
+  FIND_MAPPING,
+  PWD_MAPPING,
+  DATE_MAPPING,
+  CLEAR_MAPPING,
+  PS_MAPPING,
+  KILL_MAPPING,
+];
 
 // Simple tokenizer by whitespace, respecting quoted substrings
 function tokenize(segment: string): string[] {
@@ -152,6 +238,14 @@ export function translateSingleUnixSegment(segment: string): string {
   if (cmd === "wc" && tokens.length >= 2 && tokens[1] === "-l") {
     const restArgs = tokens.slice(2);
     return ["Measure-Object -Line", ...restArgs].join(" ");
+  }
+
+  // Dynamic translations for sleep
+  if (cmd === "sleep" && tokens.length >= 2) {
+    const duration = tokens[1];
+    if (/^\d+$/.test(duration)) {
+      return `Start-Sleep ${duration}`;
+    }
   }
 
   const mapping = MAPPINGS.find((m) => m.unix === cmd);

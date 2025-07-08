@@ -1,4 +1,5 @@
 import { translateSingleUnixSegment } from "./unixMappings";
+import { parse as shellParse } from "shell-quote";
 
 export type ShellType = "bash" | "powershell" | "cmd";
 

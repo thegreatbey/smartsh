@@ -129,4 +129,70 @@ describe("translateCommand with Unix commands", () => {
       "Measure-Object -Line"
     );
   });
+
+  test("translates which", () => {
+    expect(translateCommand("which node", ps7)).toBe(
+      "Get-Command node"
+    );
+  });
+
+  test("translates sort", () => {
+    expect(translateCommand("sort", ps7)).toBe(
+      "Sort-Object"
+    );
+  });
+
+  test("translates uniq", () => {
+    expect(translateCommand("uniq", ps7)).toBe(
+      "Select-Object -Unique"
+    );
+  });
+
+  test("translates find -name pattern", () => {
+    expect(translateCommand("find . -name *.ts", ps7)).toBe(
+      "Get-ChildItem -Recurse -Filter . *.ts"
+    );
+  });
+
+  test("translates pwd", () => {
+    expect(translateCommand("pwd", ps7)).toBe(
+      "Get-Location"
+    );
+  });
+
+  test("translates date", () => {
+    expect(translateCommand("date", ps7)).toBe(
+      "Get-Date"
+    );
+  });
+
+  test("translates clear", () => {
+    expect(translateCommand("clear", ps7)).toBe(
+      "Clear-Host"
+    );
+  });
+
+  test("translates sleep 5", () => {
+    expect(translateCommand("sleep 5", ps7)).toBe(
+      "Start-Sleep 5"
+    );
+  });
+
+  test("translates ps", () => {
+    expect(translateCommand("ps", ps7)).toBe(
+      "Get-Process"
+    );
+  });
+
+  test("translates kill pid", () => {
+    expect(translateCommand("kill 1234", ps7)).toBe(
+      "Stop-Process 1234"
+    );
+  });
+
+  test("translates kill -9 pid", () => {
+    expect(translateCommand("kill -9 1234", ps7)).toBe(
+      "Stop-Process -Force 1234"
+    );
+  });
 }); 
