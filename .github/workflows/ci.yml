@@ -28,6 +28,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Make tsup executable (Linux)
+        if: runner.os == 'Linux'
+        run: chmod +x node_modules/.bin/tsup
+
       - name: Build TypeScript
         run: npm run build
 
@@ -56,6 +60,10 @@ jobs:
         with:
           node-version: 22
           cache: 'npm'
+
+      - name: Make tsup executable (Linux)
+        run: chmod +x node_modules/.bin/tsup
+        if: runner.os == 'Linux'
 
       - name: Detect code changes
         id: changes
