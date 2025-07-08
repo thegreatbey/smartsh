@@ -150,6 +150,22 @@ const KILL_MAPPING: CommandMapping = {
   forceArgs: true,
 };
 
+const DF_MAPPING: CommandMapping = {
+  unix: "df",
+  ps: "Get-PSDrive",
+  flagMap: {
+    "-h": "", // human-readable not needed
+  },
+  forceArgs: false,
+};
+
+const HOSTNAME_MAPPING: CommandMapping = {
+  unix: "hostname",
+  ps: "$env:COMPUTERNAME",
+  flagMap: {},
+  forceArgs: false,
+};
+
 export const MAPPINGS: CommandMapping[] = [
   RM_MAPPING,
   MKDIR_MAPPING,
@@ -168,6 +184,8 @@ export const MAPPINGS: CommandMapping[] = [
   CLEAR_MAPPING,
   PS_MAPPING,
   KILL_MAPPING,
+  DF_MAPPING,
+  HOSTNAME_MAPPING,
 ];
 
 // Simple tokenizer by whitespace, respecting quoted substrings
@@ -246,6 +264,11 @@ export function translateSingleUnixSegment(segment: string): string {
     if (/^\d+$/.test(duration)) {
       return `Start-Sleep ${duration}`;
     }
+  }
+
+  // Dynamic translation for whoami
+  if (cmd === "whoami") {
+    return "$env:USERNAME";
   }
 
   const mapping = MAPPINGS.find((m) => m.unix === cmd);

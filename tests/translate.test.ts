@@ -195,4 +195,22 @@ describe("translateCommand with Unix commands", () => {
       "Stop-Process -Force 1234"
     );
   });
+
+  test("translates df -h", () => {
+    expect(translateCommand("df -h", ps7)).toBe(
+      "Get-PSDrive"
+    );
+  });
+
+  test("translates hostname", () => {
+    expect(translateCommand("hostname", ps7)).toBe(
+      "$env:COMPUTERNAME"
+    );
+  });
+
+  test("translates whoami", () => {
+    expect(translateCommand("whoami", ps7)).toBe(
+      "$env:USERNAME"
+    );
+  });
 }); 
