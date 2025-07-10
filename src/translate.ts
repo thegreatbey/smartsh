@@ -1,5 +1,5 @@
 import { translateSingleUnixSegment } from "./unixMappings";
-import { parse as shellParse } from "shell-quote";
+import { tokenizeWithPos } from "./tokenize";
 
 export type ShellType = "bash" | "powershell" | "cmd";
 
@@ -153,75 +153,19 @@ export function translateCommand(command: string, shell: ShellInfo): string {
 // Modify splitByConnectors to handle backslash-escaped quotes inside quoted strings.
 function splitByConnectors(cmd: string): (string | "&&" | "||")[] {
   const parts: (string | "&&" | "||")[] = [];
-  let current = "";
-  let quote: "'" | "\"" | null = null;
+  const tokens = tokenizeWithPos(cmd);
+  let segmentStart = 0;
 
-  for (let i = 0; i < cmd.length; i++) {
-    const ch = cmd[i];
-
-    if (quote) {
-      if (ch === "\\") {
-        // Preserve escaped char inside quotes
-        current += ch;
-        if (i + 1 < cmd.length) {
-          current += cmd[i + 1];
-          i++;
-        }
-        continue;
-      }
-      if (ch === quote) {
-        quote = null;
-      }
-      current += ch;
-      continue;
+  for (const t of tokens) {
+    if (t.value === "&&" || t.value === "||") {
+      const chunk = cmd.slice(segmentStart, t.start).trim();
+      if (chunk) parts.push(chunk);
+      parts.push(t.value as "&&" | "||");
+      segmentStart = t.end;
     }
-
-    if (ch === "'" || ch === "\"") {
-      quote = ch;
-      current += ch;
-      continue;
-    }
-
-    // Handle escape characters outside quotes (POSIX backslash, PowerShell backtick)
-    if (ch === "\\" || ch === "`") {
-      // Treat next character as literal
-      current += ch;
-      if (i + 1 < cmd.length) {
-        current += cmd[i + 1];
-        i++;
-      }
-      continue;
-    }
-
-    const next = cmd[i + 1];
-
-    if (ch === "&" && next === "&") {
-      const chunk = current.trim();
-      if (chunk) {
-        parts.push(chunk);
-      }
-      parts.push("&&");
-      current = "";
-      i++;
-      continue;
-    }
-    if (ch === "|" && next === "|") {
-      const chunk = current.trim();
-      if (chunk) {
-        parts.push(chunk);
-      }
-      parts.push("||");
-      current = "";
-      i++;
-      continue;
-    }
-
-    current += ch;
   }
-  const finalChunk = current.trim();
-  if (finalChunk) {
-    parts.push(finalChunk);
-  }
+  const last = cmd.slice(segmentStart).trim();
+  if (last) parts.push(last);
   return parts;
 }
 
