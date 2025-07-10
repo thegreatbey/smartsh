@@ -213,4 +213,22 @@ describe("translateCommand with Unix commands", () => {
       "$env:USERNAME"
     );
   });
+
+  test("translates dirname", () => {
+    expect(translateCommand("dirname /etc/passwd", ps7)).toBe(
+      "Split-Path -Parent /etc/passwd"
+    );
+  });
+
+  test("translates basename", () => {
+    expect(translateCommand("basename /etc/passwd", ps7)).toBe(
+      "Split-Path -Leaf /etc/passwd"
+    );
+  });
+
+  test("translates tee -a", () => {
+    expect(translateCommand("echo foo | tee -a out.txt", ps7)).toBe(
+      "echo foo | Tee-Object -FilePath -Append out.txt"
+    );
+  });
 }); 

@@ -166,6 +166,29 @@ const HOSTNAME_MAPPING: CommandMapping = {
   forceArgs: false,
 };
 
+const DIRNAME_MAPPING: CommandMapping = {
+  unix: "dirname",
+  ps: "Split-Path -Parent",
+  flagMap: {},
+  forceArgs: true,
+};
+
+const BASENAME_MAPPING: CommandMapping = {
+  unix: "basename",
+  ps: "Split-Path -Leaf",
+  flagMap: {},
+  forceArgs: true,
+};
+
+const TEE_MAPPING: CommandMapping = {
+  unix: "tee",
+  ps: "Tee-Object -FilePath",
+  flagMap: {
+    "-a": "-Append",
+  },
+  forceArgs: true,
+};
+
 export const MAPPINGS: CommandMapping[] = [
   RM_MAPPING,
   MKDIR_MAPPING,
@@ -186,6 +209,9 @@ export const MAPPINGS: CommandMapping[] = [
   KILL_MAPPING,
   DF_MAPPING,
   HOSTNAME_MAPPING,
+  DIRNAME_MAPPING,
+  BASENAME_MAPPING,
+  TEE_MAPPING,
 ];
 
 // Simple tokenizer by whitespace, respecting quoted substrings
