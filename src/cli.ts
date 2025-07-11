@@ -1,6 +1,6 @@
 import { detectShell, translateCommand } from "./translate";
 import path from "node:path";
-import { spawn } from "child_process";
+import { spawn } from "node:child_process";
 import { initConfig } from "./config";
 
 // Determine the actual invoked binary name so that error/help messages
@@ -60,6 +60,7 @@ function main() {
 
   let i = 0;
   let lintOnly = false;
+  let completionShell: string | null = null;
 
   for (; i < rawArgs.length; i++) {
     const arg = rawArgs[i];
@@ -75,6 +76,15 @@ function main() {
       process.env.SMARTSH_DEBUG = "1";
       continue;
     }
+    if (arg.startsWith("--completion")) {
+      if (arg.includes("=")) {
+        completionShell = arg.split("=")[1];
+      } else if (i + 1 < rawArgs.length) {
+        completionShell = rawArgs[i + 1];
+        i++;
+      }
+      continue;
+    }
     cmdParts.push(arg);
   }
 
@@ -86,6 +96,20 @@ function main() {
   }
 
   const originalCommand = cmdParts.join(" ");
+
+  // ---------------------------
+  // Completion script generation
+  // ---------------------------
+  if (completionShell) {
+    const script = generateCompletionScript(completionShell);
+    if (!script) {
+      console.error(`${TOOL_NAME}: Unknown shell '${completionShell}'. Supported shells: bash, zsh, powershell`);
+      process.exit(1);
+    }
+    console.log(script);
+    process.exit(0);
+  }
+
   const shellInfo = detectShell();
   if (lintOnly) {
     const { lintCommand } = require("./translate");
@@ -108,6 +132,27 @@ function main() {
   }
 
   runInShell(shellInfo, commandToRun);
+}
+
+function generateCompletionScript(shell: string): string | null {
+  const flags = [
+    "--translate-only", "-t",
+    "--lint", "-l",
+    "--debug", "-d",
+    "--completion"
+  ];
+
+  switch (shell) {
+    case "bash":
+      return `# bash completion for smartsh\n_smartsh_complete() {\n  local cur="\${COMP_WORDS[COMP_CWORD]}"\n  local opts="${flags.join(" ")}"\n  COMPREPLY=( $(compgen -W \"$opts\" -- \$cur) )\n  return 0\n}\ncomplete -F _smartsh_complete smartsh sm`;
+    case "zsh":
+      return `#compdef smartsh sm\n_arguments \'*::options:->options\'\ncase $state in\n  options)\n    local opts=(\n      '--translate-only[Translate but do not execute]'\n      '-t[Translate but do not execute]'\n      '--lint[Lint command for unsupported segments]'\n      '-l[Lint command]'\n      '--debug[Enable debug output]'\n      '-d[Enable debug output]'\n      '--completion=[Generate completion script]:shell:(bash zsh powershell)'\n    )\n    _describe 'options' opts\n  ;;\nesac`;
+    case "powershell":
+    case "pwsh":
+      return `# PowerShell completion for smartsh\nRegister-ArgumentCompleter -CommandName smartsh, sm -ScriptBlock {\n    param($wordToComplete, $commandAst, $cursorPosition)\n    $opts = ${flags.map(f => `'${f}'`).join(", ")}\n    $opts | Where-Object { $_ -like \"$wordToComplete*\" } | ForEach-Object {\n        [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterName', $_)\n    }\n}`;
+    default:
+      return null;
+  }
 }
 
 if (require.main === module) {

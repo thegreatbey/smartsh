@@ -28,6 +28,22 @@ const SUPPORTED_COMMANDS = new Set<string>([...MAPPINGS.map((m) => m.unix), ...D
 export function lintCommand(cmd: string): { unsupported: string[] } {
   const unsupported: string[] = [];
 
+  // Pre-compute allowed flag sets for static mappings
+  const STATIC_ALLOWED_FLAGS: Record<string, Set<string>> = Object.fromEntries(
+    MAPPINGS.map((m) => [m.unix, new Set(Object.keys(m.flagMap))])
+  );
+
+  // Manual definitions for dynamic translators that aren't part of MAPPINGS
+  const DYNAMIC_ALLOWED_FLAGS: Record<string, Set<string>> = {
+    uniq: new Set(["-c"]),
+    sort: new Set(["-n"]),
+    cut: new Set(["-d", "-f"]),
+    tr: new Set([]),
+    find: new Set(["-name", "-type", "-delete", "-exec"]),
+    xargs: new Set(["-0"]),
+    sed: new Set(["-n"]),
+  };
+
   const connectorParts = splitByConnectors(cmd).filter((p) => p !== "&&" && p !== "||");
 
   for (const part of connectorParts) {
@@ -41,8 +57,23 @@ export function lintCommand(cmd: string): { unsupported: string[] } {
       const cmdTok = tokens.find((t) => t.role === "cmd");
       if (!cmdTok) continue;
       const c = cmdTok.value;
+
+      // 1. Unknown command
       if (!SUPPORTED_COMMANDS.has(c)) {
-        unsupported.push(trimmed);
+        unsupported.push(`${trimmed} (unknown command)`);
+        continue;
+      }
+
+      // 2. Unknown flags for supported command
+      const allowedFlags = STATIC_ALLOWED_FLAGS[c] ?? DYNAMIC_ALLOWED_FLAGS[c];
+      if (allowedFlags) {
+        const flagToks = tokens.filter((t) => t.role === "flag");
+        for (const fTok of flagToks) {
+          if (!allowedFlags.has(fTok.value)) {
+            unsupported.push(`${trimmed} (unsupported flag: ${fTok.value})`);
+            break; // Only report once per segment
+          }
+        }
       }
     }
   }

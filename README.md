@@ -68,6 +68,7 @@ The bundled output is generated at `dist/cli.js` and includes a shebang so it ca
 | `--translate-only` | `-t` | Print the translated command but don’t execute it (useful for debugging). |
 | `--lint` | `-l` | Check a command for unsupported segments/flags. Exits with code 1 if anything can’t be translated. |
 | `--debug` | `-d` | Enable verbose shell-detection and translation logs. |
+| `--completion <shell>` | — | Output a shell-completion script for `bash`, `zsh`, or `powershell`. |
 
 Example lint check:
 
@@ -75,6 +76,20 @@ Example lint check:
 sm --lint "ls | foocmd bar"
 # ✖ Unsupported segments detected:
 #   - foocmd bar
+```
+
+Generate a completion script:
+
+```bash
+# Bash example
+smartsh --completion bash > /etc/bash_completion.d/smartsh
+
+# Zsh example (oh-my-zsh)
+smartsh --completion zsh > ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/_smartsh
+
+# PowerShell example
+smartsh --completion pwsh | Out-File -Encoding ASCII $PROFILE\smartsh-completion.ps1
+source $PROFILE\smartsh-completion.ps1
 ```
 
 ### Extending via ~/.smartshrc
