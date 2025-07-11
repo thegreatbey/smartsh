@@ -200,7 +200,7 @@ const TEE_MAPPING: CommandMapping = {
   forceArgs: true,
 };
 
-export const MAPPINGS: CommandMapping[] = [
+const BASE_MAPPINGS: CommandMapping[] = [
   RM_MAPPING,
   MKDIR_MAPPING,
   LS_MAPPING,
@@ -224,6 +224,18 @@ export const MAPPINGS: CommandMapping[] = [
   BASENAME_MAPPING,
   TEE_MAPPING,
 ];
+
+const EXTRA_MAPPINGS: CommandMapping[] = [];
+
+export function addExtraMappings(maps: CommandMapping[]) {
+  for (const m of maps) {
+    // naive de-dup: skip if unix name already exists in base or extra
+    if (BASE_MAPPINGS.some((x) => x.unix === m.unix) || EXTRA_MAPPINGS.some((x) => x.unix === m.unix)) continue;
+    EXTRA_MAPPINGS.push(m);
+  }
+}
+
+export const MAPPINGS: CommandMapping[] = [...BASE_MAPPINGS, ...EXTRA_MAPPINGS];
 
 function smartJoin(tokens: string[]): string {
   const merged: string[] = [];
@@ -636,7 +648,7 @@ export function translateSingleUnixSegment(segment: string): string {
   // Static table-driven mappings
   // -----------------------------
 
-  const mapping = MAPPINGS.find((m) => m.unix === cmd);
+  const mapping = [...BASE_MAPPINGS, ...EXTRA_MAPPINGS].find((m) => m.unix === cmd);
   if (!mapping) return segment; // unknown command
 
   const flagTokens = earlyFlagTokens;

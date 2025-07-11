@@ -1,6 +1,55 @@
 import { translateSingleUnixSegment } from "./unixMappings";
 import { tokenizeWithPos, tagTokenRoles } from "./tokenize";
 
+// -----------------------------
+// Lint support helpers
+// -----------------------------
+import { MAPPINGS } from "./unixMappings";
+
+const DYNAMIC_CMDS = [
+  "head",
+  "tail",
+  "wc",
+  "sleep",
+  "whoami",
+  "sed",
+  "awk",
+  "cut",
+  "tr",
+  "uniq",
+  "sort",
+  "find",
+  "xargs",
+  "echo"
+];
+
+const SUPPORTED_COMMANDS = new Set<string>([...MAPPINGS.map((m) => m.unix), ...DYNAMIC_CMDS]);
+
+export function lintCommand(cmd: string): { unsupported: string[] } {
+  const unsupported: string[] = [];
+
+  const connectorParts = splitByConnectors(cmd).filter((p) => p !== "&&" && p !== "||");
+
+  for (const part of connectorParts) {
+    const pipeParts = splitByPipe(part);
+    for (const seg of pipeParts) {
+      const trimmed = seg.trim();
+      if (!trimmed) continue;
+      if (trimmed.startsWith("(") || trimmed.startsWith("{")) continue; // skip subshell/grouping
+
+      const tokens = tagTokenRoles(tokenizeWithPos(trimmed));
+      const cmdTok = tokens.find((t) => t.role === "cmd");
+      if (!cmdTok) continue;
+      const c = cmdTok.value;
+      if (!SUPPORTED_COMMANDS.has(c)) {
+        unsupported.push(trimmed);
+      }
+    }
+  }
+
+  return { unsupported };
+}
+
 export type ShellType = "bash" | "powershell" | "cmd";
 
 export interface ShellInfo {

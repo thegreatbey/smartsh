@@ -1,6 +1,7 @@
 import { detectShell, translateCommand } from "./translate";
 import path from "node:path";
 import { spawn } from "child_process";
+import { initConfig } from "./config";
 
 // Determine the actual invoked binary name so that error/help messages
 // correctly display either "smartsh" or its alias "sm".
@@ -47,6 +48,8 @@ function runInShell(shellInfo: ReturnType<typeof detectShell>, command: string):
 }
 
 function main() {
+  // Load user config & plugins
+  initConfig();
   const rawArgs = process.argv.slice(2);
 
   // ---------------------------
@@ -56,17 +59,22 @@ function main() {
   const cmdParts: string[] = [];
 
   let i = 0;
+  let lintOnly = false;
+
   for (; i < rawArgs.length; i++) {
     const arg = rawArgs[i];
     if (arg === "--translate-only" || arg === "-t") {
       translateOnly = true;
       continue;
     }
+    if (arg === "--lint" || arg === "-l") {
+      lintOnly = true;
+      continue;
+    }
     if (arg === "--debug" || arg === "-d") {
       process.env.SMARTSH_DEBUG = "1";
       continue;
     }
-    // End of our flags; rest belong to the command
     cmdParts.push(arg);
   }
 
@@ -79,8 +87,21 @@ function main() {
 
   const originalCommand = cmdParts.join(" ");
   const shellInfo = detectShell();
-  const commandToRun = translateCommand(originalCommand, shellInfo);
+  if (lintOnly) {
+    const { lintCommand } = require("./translate");
+    const res = lintCommand(originalCommand);
+    if (res.unsupported.length === 0) {
+      console.log("✔ All segments are supported.");
+      process.exit(0);
+    }
+    console.error("✖ Unsupported segments detected:");
+    for (const seg of res.unsupported) {
+      console.error("  -", seg);
+    }
+    process.exit(1);
+  }
 
+  const commandToRun = translateCommand(originalCommand, shellInfo);
   if (translateOnly) {
     console.log(commandToRun);
     return;

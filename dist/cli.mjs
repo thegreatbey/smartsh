@@ -42,6 +42,9 @@ function tokenizeWithPos(cmd) {
   }
   return tokens;
 }
+function isRedirectionToken(val) {
+  return /^(\d*>>?&?\d*|[<>]{1,2}|&>?)$/.test(val);
+}
 function tagTokenRoles(tokens) {
   const out = [];
   let expectCmd = true;
@@ -49,6 +52,10 @@ function tagTokenRoles(tokens) {
     if (OPS.has(t.value)) {
       out.push({ ...t, role: "op" });
       expectCmd = true;
+      continue;
+    }
+    if (isRedirectionToken(t.value)) {
+      out.push({ ...t, role: "arg" });
       continue;
     }
     if (expectCmd) {
@@ -73,10 +80,124 @@ var init_tokenize = __esm({
 });
 
 // src/unixMappings.ts
+function smartJoin(tokens) {
+  const merged = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i];
+    if (/^\d+$/.test(tok) && i + 1 < tokens.length) {
+      const op = tokens[i + 1];
+      if (op === ">" || op === ">>" || op === ">&" || op === ">|" || op === "<&" || op === ">>&") {
+        let combined = tok + op;
+        let skip = 1;
+        if ((op === ">&" || op === "<&") && i + 2 < tokens.length && /^\d+$/.test(tokens[i + 2])) {
+          combined += tokens[i + 2];
+          skip = 2;
+        }
+        merged.push(combined);
+        i += skip;
+        continue;
+      }
+    }
+    merged.push(tok);
+  }
+  return merged.join(" ");
+}
+function mergeCommandSubs(tokens) {
+  const out = [];
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i] === "$" && i + 1 < tokens.length && tokens[i + 1] === "(") {
+      let depth = 0;
+      let j = i + 1;
+      for (; j < tokens.length; j++) {
+        if (tokens[j] === "(") {
+          depth++;
+        } else if (tokens[j] === ")") {
+          depth--;
+          if (depth < 0) {
+            break;
+          }
+        }
+      }
+      if (j < tokens.length) {
+        const combined = tokens.slice(i, j + 1).join("");
+        out.push(combined);
+        i = j;
+        continue;
+      }
+    }
+    if (tokens[i].startsWith("$(")) {
+      let combined = tokens[i];
+      let j = i;
+      while (!combined.endsWith(")") && j + 1 < tokens.length) {
+        j++;
+        combined += tokens[j];
+      }
+      out.push(combined);
+      i = j;
+      continue;
+    }
+    out.push(tokens[i]);
+  }
+  return out;
+}
+function mergeEnvExp(tokens) {
+  const out = [];
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i] === "$" && i + 1 < tokens.length && tokens[i + 1].startsWith("{")) {
+      let combined = tokens[i] + tokens[i + 1];
+      let j = i + 1;
+      while (!combined.endsWith("}") && j + 1 < tokens.length) {
+        j++;
+        combined += tokens[j];
+      }
+      out.push(combined);
+      i = j;
+      continue;
+    }
+    if (tokens[i].startsWith("${")) {
+      let combined = tokens[i];
+      let j = i;
+      while (!combined.endsWith("}") && j + 1 < tokens.length) {
+        j++;
+        combined += tokens[j];
+      }
+      out.push(combined);
+      i = j;
+      continue;
+    }
+    out.push(tokens[i]);
+  }
+  return out;
+}
+function smartJoinEnhanced(tokens) {
+  const mergedSubs = mergeCommandSubs(mergeEnvExp(tokens));
+  const out = originalSmartJoin(mergedSubs);
+  return out.replace(/\$\s+\(/g, "$(").replace(/\(\s+/g, "(").replace(/\s+\)/g, ")");
+}
 function translateSingleUnixSegment(segment) {
+  if (segment.includes("${")) {
+    return segment;
+  }
+  const trimmed = segment.trim();
+  if (trimmed.startsWith("(") || trimmed.startsWith("{")) {
+    return segment;
+  }
   const roleTokens = tagTokenRoles(tokenizeWithPos(segment));
   if (roleTokens.length === 0) return segment;
+  let hasHereDoc = roleTokens.some((t) => t.value === "<<");
+  const tokensValues = roleTokens.map((t) => t.value);
+  for (let i = 0; i < tokensValues.length - 1; i++) {
+    if (tokensValues[i] === "<" && tokensValues[i + 1] === "<") {
+      hasHereDoc || (hasHereDoc = true);
+      break;
+    }
+  }
+  if (hasHereDoc) {
+    return segment;
+  }
   const tokens = roleTokens.map((t) => t.value);
+  const earlyFlagTokens = roleTokens.filter((t) => t.role === "flag").map((t) => t.value);
+  const earlyArgTokens = roleTokens.filter((t) => t.role === "arg").map((t) => t.value);
   const cmdToken = roleTokens.find((t) => t.role === "cmd");
   if (!cmdToken) return segment;
   const cmd = cmdToken.value;
@@ -113,11 +234,11 @@ function translateSingleUnixSegment(segment) {
       return true;
     }).map((t) => t.value);
     const psCmd = `Select-Object ${flag} ${count}`;
-    return [psCmd, ...targetArgs].join(" ");
+    return smartJoinEnhanced([psCmd, ...targetArgs]);
   }
   if (cmd === "wc" && tokens.length >= 2 && tokens[1] === "-l") {
     const restArgs = tokens.slice(2);
-    return ["Measure-Object -Line", ...restArgs].join(" ");
+    return smartJoinEnhanced(["Measure-Object -Line", ...restArgs]);
   }
   if (cmd === "sleep" && tokens.length >= 2) {
     const duration = tokens[1];
@@ -139,7 +260,20 @@ function translateSingleUnixSegment(segment) {
         const replacement = parts[1];
         const restArgs = tokens.slice(2);
         const psPart = `-replace '${pattern}','${replacement}'`;
-        return [psPart, ...restArgs].join(" ");
+        return smartJoinEnhanced([psPart, ...restArgs]);
+      }
+    }
+    if (tokens.length >= 3 && tokens[1] === "-n") {
+      const scriptTok = tokens[2];
+      const uq = scriptTok.startsWith("'") || scriptTok.startsWith('"') ? scriptTok.slice(1, -1) : scriptTok;
+      const mLine = uq.match(/^(\d+)p$/);
+      if (mLine) {
+        const idx = parseInt(mLine[1], 10) - 1;
+        if (idx >= 0) {
+          const restArgs = tokens.slice(3);
+          const psPart = `Select-Object -Index ${idx}`;
+          return smartJoinEnhanced([psPart, ...restArgs]);
+        }
       }
     }
   }
@@ -153,14 +287,131 @@ function translateSingleUnixSegment(segment) {
         const zeroBased = fieldIdx - 1;
         const restArgs = tokens.slice(2);
         const psPart = `ForEach-Object { $_.Split()[${zeroBased}] }`;
-        return [psPart, ...restArgs].join(" ");
+        return smartJoinEnhanced([psPart, ...restArgs]);
       }
     }
   }
+  if (cmd === "cut") {
+    let delim;
+    let fieldNum;
+    const otherArgs = [];
+    for (let i = 1; i < tokens.length; i++) {
+      const tok = tokens[i];
+      if (tok === "-d" && i + 1 < tokens.length) {
+        delim = tokens[i + 1];
+        i++;
+        continue;
+      }
+      if (tok.startsWith("-d") && tok.length > 2) {
+        delim = tok.slice(2);
+        continue;
+      }
+      if (tok === "-f" && i + 1 < tokens.length) {
+        const val = parseInt(tokens[i + 1], 10);
+        if (!isNaN(val)) fieldNum = val;
+        i++;
+        continue;
+      }
+      if (tok.startsWith("-f") && tok.length > 2) {
+        const val = parseInt(tok.slice(2), 10);
+        if (!isNaN(val)) fieldNum = val;
+        continue;
+      }
+      otherArgs.push(tok);
+    }
+    if (fieldNum !== void 0) {
+      const fieldIdx = fieldNum - 1;
+      const delimExpr = delim ? delim.replace(/^['"]|['"]$/g, "") : "	";
+      const psPart = `ForEach-Object { $_.Split('${delimExpr}')[${fieldIdx}] }`;
+      return smartJoinEnhanced([psPart, ...otherArgs]);
+    }
+  }
+  if (cmd === "tr" && tokens.length >= 3) {
+    const fromTok = tokens[1];
+    const toTok = tokens[2];
+    const stripQuote = (s) => s.startsWith("'") || s.startsWith('"') ? s.slice(1, -1) : s;
+    const from = stripQuote(fromTok);
+    const to = stripQuote(toTok);
+    if (from.length === to.length && from.length === 1) {
+      const psPart = `ForEach-Object { $_.Replace('${from}','${to}') }`;
+      const rest = tokens.slice(3);
+      return smartJoinEnhanced([psPart, ...rest]);
+    }
+    if (from.length === to.length) {
+      const psPart = `ForEach-Object { $_ -replace '[${from}]','${to.length === 1 ? to : `[${to}]`}' }`;
+      const rest = tokens.slice(3);
+      return smartJoinEnhanced([psPart, ...rest]);
+    }
+  }
+  if (cmd === "uniq" && earlyFlagTokens.includes("-c")) {
+    const restArgs = earlyArgTokens;
+    const psPart = 'Group-Object | ForEach-Object { "$($_.Count) $($_.Name)" }';
+    return smartJoinEnhanced([psPart, ...restArgs]);
+  }
+  if (cmd === "sort" && earlyFlagTokens.includes("-n")) {
+    const restArgs = earlyArgTokens;
+    const psPart = "Sort-Object { [double]$_ }";
+    return smartJoinEnhanced([psPart, ...restArgs]);
+  }
+  if (cmd === "find") {
+    let pathArg;
+    let filterPattern;
+    let wantDelete = false;
+    let wantExecEcho = false;
+    for (let i = 1; i < tokens.length; i++) {
+      const tok = tokens[i];
+      if (!tok.startsWith("-")) {
+        if (!pathArg) {
+          pathArg = tok;
+        }
+        continue;
+      }
+      if (tok === "-name" && i + 1 < tokens.length) {
+        filterPattern = tokens[i + 1];
+        i++;
+        continue;
+      }
+      if (tok === "-delete") {
+        wantDelete = true;
+        continue;
+      }
+      if (tok === "-exec" && i + 2 < tokens.length && tokens[i + 1] === "echo") {
+        wantExecEcho = true;
+        while (i + 1 < tokens.length && tokens[i + 1] !== ";" && tokens[i + 1] !== "\\;") {
+          i++;
+        }
+        continue;
+      }
+    }
+    const parts = ["Get-ChildItem", pathArg ?? "", "-Recurse"].filter(Boolean);
+    if (filterPattern) {
+      const unq = filterPattern.replace(/^['\"]|['\"]$/g, "");
+      parts.push("-Filter", unq);
+    }
+    let pipeline = parts.join(" ");
+    if (wantDelete) {
+      pipeline += " | Remove-Item";
+      return pipeline;
+    }
+    if (wantExecEcho) {
+      pipeline += " | ForEach-Object { echo $_ }";
+      return pipeline;
+    }
+  }
+  if (cmd === "xargs") {
+    let idx = 1;
+    const flagZero = tokens[1] === "-0";
+    if (flagZero) idx = 2;
+    const subCmd = tokens[idx];
+    if (!subCmd) return segment;
+    const subArgs = tokens.slice(idx + 1);
+    const psCmd = ["ForEach-Object {", subCmd, ...subArgs, "$_", "}"];
+    return smartJoinEnhanced(psCmd);
+  }
   const mapping = MAPPINGS.find((m) => m.unix === cmd);
   if (!mapping) return segment;
-  const flagTokens = roleTokens.filter((t) => t.role === "flag").map((t) => t.value);
-  const argTokens = roleTokens.filter((t) => t.role === "arg").map((t) => t.value);
+  const flagTokens = earlyFlagTokens;
+  const argTokens = earlyArgTokens;
   let psFlags = "";
   for (const flagTok of flagTokens) {
     const mapped = mapping.flagMap[flagTok];
@@ -174,9 +425,9 @@ function translateSingleUnixSegment(segment) {
     return segment;
   }
   const psCommand = `${mapping.ps}${psFlags}`.trim();
-  return [psCommand, ...argTokens].join(" ");
+  return smartJoinEnhanced([psCommand, ...argTokens]);
 }
-var RM_MAPPING, MKDIR_MAPPING, LS_MAPPING, CP_MAPPING, MV_MAPPING, TOUCH_MAPPING, GREP_MAPPING, CAT_MAPPING, WHICH_MAPPING, SORT_MAPPING, UNIQ_MAPPING, FIND_MAPPING, PWD_MAPPING, DATE_MAPPING, CLEAR_MAPPING, PS_MAPPING, KILL_MAPPING, DF_MAPPING, HOSTNAME_MAPPING, DIRNAME_MAPPING, BASENAME_MAPPING, TEE_MAPPING, MAPPINGS;
+var RM_MAPPING, MKDIR_MAPPING, LS_MAPPING, CP_MAPPING, MV_MAPPING, TOUCH_MAPPING, GREP_MAPPING, CAT_MAPPING, WHICH_MAPPING, SORT_MAPPING, UNIQ_MAPPING, FIND_MAPPING, PWD_MAPPING, DATE_MAPPING, CLEAR_MAPPING, PS_MAPPING, KILL_MAPPING, DF_MAPPING, HOSTNAME_MAPPING, DIRNAME_MAPPING, BASENAME_MAPPING, TEE_MAPPING, MAPPINGS, originalSmartJoin;
 var init_unixMappings = __esm({
   "src/unixMappings.ts"() {
     "use strict";
@@ -240,7 +491,16 @@ var init_unixMappings = __esm({
         "-i": "-CaseSensitive:$false",
         "-n": "-LineNumber",
         "-in": "-CaseSensitive:$false -LineNumber",
-        "-ni": "-CaseSensitive:$false -LineNumber"
+        "-ni": "-CaseSensitive:$false -LineNumber",
+        "-v": "-NotMatch",
+        "-iv": "-CaseSensitive:$false -NotMatch",
+        "-vn": "-CaseSensitive:$false -LineNumber",
+        "-vni": "-CaseSensitive:$false -NotMatch -LineNumber",
+        "-q": "-Quiet",
+        "-iq": "-CaseSensitive:$false -Quiet",
+        "-qi": "-CaseSensitive:$false -Quiet",
+        "-E": "",
+        "-F": "-SimpleMatch"
       },
       forceArgs: true
     };
@@ -370,6 +630,7 @@ var init_unixMappings = __esm({
       BASENAME_MAPPING,
       TEE_MAPPING
     ];
+    originalSmartJoin = smartJoin;
   }
 });
 
@@ -481,8 +742,14 @@ function splitByConnectors(cmd) {
   const parts = [];
   const tokens = tokenizeWithPos(cmd);
   let segmentStart = 0;
+  let parenDepth = 0;
+  let braceDepth = 0;
   for (const t of tokens) {
-    if (t.value === "&&" || t.value === "||") {
+    if (t.value === "(") parenDepth++;
+    else if (t.value === ")") parenDepth = Math.max(0, parenDepth - 1);
+    else if (t.value === "{") braceDepth++;
+    else if (t.value === "}") braceDepth = Math.max(0, braceDepth - 1);
+    if (parenDepth === 0 && braceDepth === 0 && (t.value === "&&" || t.value === "||")) {
       const chunk = cmd.slice(segmentStart, t.start).trim();
       if (chunk) parts.push(chunk);
       parts.push(t.value);
@@ -494,18 +761,28 @@ function splitByConnectors(cmd) {
   return parts;
 }
 function splitByPipe(segment) {
-  const tokens = tagTokenRoles(tokenizeWithPos(segment));
+  const tokens = tokenizeWithPos(segment);
   const parts = [];
-  let current = "";
-  let lastEnd = 0;
+  let lastPos = 0;
+  let parenDepth = 0;
+  let braceDepth = 0;
   for (const t of tokens) {
-    if (t.role === "op" && t.value === "|") {
-      const before = segment.slice(lastEnd, t.start).trim();
-      parts.push(before);
-      lastEnd = t.end;
+    if (t.value === "(") {
+      parenDepth++;
+    } else if (t.value === ")") {
+      parenDepth = Math.max(0, parenDepth - 1);
+    } else if (t.value === "{") {
+      braceDepth++;
+    } else if (t.value === "}") {
+      braceDepth = Math.max(0, braceDepth - 1);
+    }
+    if (parenDepth === 0 && braceDepth === 0 && t.value === "|") {
+      const chunk = segment.slice(lastPos, t.start).trim();
+      if (chunk) parts.push(chunk);
+      lastPos = t.end;
     }
   }
-  const tail = segment.slice(lastEnd).trim();
+  const tail = segment.slice(lastPos).trim();
   if (tail) parts.push(tail);
   return parts;
 }

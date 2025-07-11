@@ -61,6 +61,76 @@ The bundled output is generated at `dist/cli.js` and includes a shebang so it ca
 * `SMARTSH_SHELL` – manually set the shell type (`bash`, `cmd`, or `powershell`) if auto-detection is incorrect.
 * `SMARTSH_DEBUG=1` – enable verbose detection/debug logs. 
 
+### CLI flags
+
+| Flag | Shorthand | Purpose |
+|------|-----------|---------|
+| `--translate-only` | `-t` | Print the translated command but don’t execute it (useful for debugging). |
+| `--lint` | `-l` | Check a command for unsupported segments/flags. Exits with code 1 if anything can’t be translated. |
+| `--debug` | `-d` | Enable verbose shell-detection and translation logs. |
+
+Example lint check:
+
+```bash
+sm --lint "ls | foocmd bar"
+# ✖ Unsupported segments detected:
+#   - foocmd bar
+```
+
+### Extending via ~/.smartshrc
+
+You can register additional translations without touching the core package.  Create a JSON file in your home directory named **`.smartshrc`** or **`.smartshrc.json`**:
+
+```jsonc
+{
+  "mappings": [
+    {
+      "unix": "foo",
+      "ps": "Write-Host foo",
+      "flagMap": {}
+    },
+    {
+      "unix": "bar",
+      "ps": "Invoke-Something",
+      "flagMap": {
+        "-q": "-Quiet"
+      },
+      "forceArgs": true
+    }
+  ]
+}
+```
+
+Fields are identical to the built-in mapping objects (see source).  When `smartsh` starts it loads this file and merges your mappings with the built-ins; duplicates by `unix` name are ignored.
+
+#### Using a JavaScript plugin
+
+If you need more dynamic logic you can create `~/.smartshrc.js` (CommonJS) that exports either:
+
+1. **An object** with the same shape as the JSON example above.
+2. **A function** that receives a helpers object and can call `addExtraMappings` directly.
+
+Example:
+
+```js
+// ~/.smartshrc.js
+module.exports = ({ addExtraMappings }) => {
+  addExtraMappings([
+    {
+      unix: "hello",
+      ps: "Write-Host 'Hello from plugin'",
+      flagMap: {}
+    }
+  ]);
+  // can also return JSON-style config
+  return { mappings: [] };
+};
+```
+
+Changes take effect the next time you run `smartsh`.
+
+---
+
 # Supported Unix-style commands (translated on PowerShell)
 
 | Unix | Flags | PowerShell equivalent |
