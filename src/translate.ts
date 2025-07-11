@@ -1,5 +1,5 @@
 import { translateSingleUnixSegment } from "./unixMappings";
-import { tokenizeWithPos } from "./tokenize";
+import { tokenizeWithPos, tagTokenRoles } from "./tokenize";
 
 export type ShellType = "bash" | "powershell" | "cmd";
 
@@ -90,7 +90,17 @@ export function detectShell(): ShellInfo {
       return { type: "cmd", supportsConditionalConnectors: true };
     }
 
-    // Check parent process executable via process.env.ComSpec or argv[0] heuristically.
+    // If PSModulePath is set we are likely in PowerShell (cmd.exe doesn't set it)
+    if (process.env.PSModulePath) {
+      const version = getPowerShellVersionSync();
+      return {
+        type: "powershell",
+        version,
+        supportsConditionalConnectors: version !== null && version >= 7,
+      };
+    }
+
+    // Check parent process executable via ComSpec; still could be CMD if user launched from there.
     const comspec = process.env.ComSpec?.toLowerCase();
     if (comspec?.includes("cmd.exe")) {
       debugLog("Detected CMD via ComSpec path.");
@@ -156,8 +166,15 @@ function splitByConnectors(cmd: string): (string | "&&" | "||")[] {
   const tokens = tokenizeWithPos(cmd);
   let segmentStart = 0;
 
+  let parenDepth = 0;
+  let braceDepth = 0;
   for (const t of tokens) {
-    if (t.value === "&&" || t.value === "||") {
+    if (t.value === "(") parenDepth++;
+    else if (t.value === ")") parenDepth = Math.max(0, parenDepth - 1);
+    else if (t.value === "{") braceDepth++;
+    else if (t.value === "}") braceDepth = Math.max(0, braceDepth - 1);
+
+    if (parenDepth === 0 && braceDepth === 0 && (t.value === "&&" || t.value === "||")) {
       const chunk = cmd.slice(segmentStart, t.start).trim();
       if (chunk) parts.push(chunk);
       parts.push(t.value as "&&" | "||");
@@ -169,55 +186,43 @@ function splitByConnectors(cmd: string): (string | "&&" | "||")[] {
   return parts;
 }
 
-// Split a string by unescaped, unquoted | characters.
+// Split a segment by top-level pipe (|) operators while preserving subshell/grouped
+// expressions like ( ... | ... ) or { ... | ... }. We scan the token stream and
+// keep track of parentheses/brace depth; a pipe only acts as a delimiter when
+// we are *not* inside any grouping depth. This mirrors the logic in
+// splitByConnectors above and prevents accidental splitting inside subshells.
 function splitByPipe(segment: string): string[] {
+  const tokens = tokenizeWithPos(segment); // we only need raw tokens/positions
+
   const parts: string[] = [];
-  let current = "";
-  let quote: "'" | "\"" | null = null;
+  let lastPos = 0;
+  let parenDepth = 0;
+  let braceDepth = 0;
 
-  for (let i = 0; i < segment.length; i++) {
-    const ch = segment[i];
-
-    if (quote) {
-      if (ch === "\\") {
-        current += ch;
-        if (i + 1 < segment.length) {
-          current += segment[i + 1];
-          i++;
-        }
-        continue;
-      }
-      if (ch === quote) {
-        quote = null;
-      }
-      current += ch;
-      continue;
+  for (const t of tokens) {
+    // Track grouping depth
+    if (t.value === "(") {
+      parenDepth++;
+    } else if (t.value === ")") {
+      parenDepth = Math.max(0, parenDepth - 1);
+    } else if (t.value === "{") {
+      braceDepth++;
+    } else if (t.value === "}") {
+      braceDepth = Math.max(0, braceDepth - 1);
     }
 
-    if (ch === "'" || ch === "\"") {
-      quote = ch;
-      current += ch;
-      continue;
+    // Only treat | as a delimiter at top level (no nested grouping)
+    if (parenDepth === 0 && braceDepth === 0 && t.value === "|") {
+      const chunk = segment.slice(lastPos, t.start).trim();
+      if (chunk) parts.push(chunk);
+      lastPos = t.end; // skip past the pipe character
     }
-
-    if (ch === "\\" || ch === "`") {
-      current += ch;
-      if (i + 1 < segment.length) {
-        current += segment[i + 1];
-        i++;
-      }
-      continue;
-    }
-
-    if (ch === "|") {
-      parts.push(current.trim());
-      current = "";
-      continue;
-    }
-
-    current += ch;
   }
-  parts.push(current.trim());
+
+  // Add whatever remains after the last pipe (or the whole string if none)
+  const tail = segment.slice(lastPos).trim();
+  if (tail) parts.push(tail);
+
   return parts;
 }
 

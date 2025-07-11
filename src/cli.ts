@@ -47,16 +47,44 @@ function runInShell(shellInfo: ReturnType<typeof detectShell>, command: string):
 }
 
 function main() {
-  const args = process.argv.slice(2);
+  const rawArgs = process.argv.slice(2);
 
-  if (args.length === 0) {
-    console.error(`${TOOL_NAME}: No command provided. Usage: ${TOOL_NAME} \"echo hello && echo world\"`);
+  // ---------------------------
+  // Flag parsing (very simple)
+  // ---------------------------
+  let translateOnly = false;
+  const cmdParts: string[] = [];
+
+  let i = 0;
+  for (; i < rawArgs.length; i++) {
+    const arg = rawArgs[i];
+    if (arg === "--translate-only" || arg === "-t") {
+      translateOnly = true;
+      continue;
+    }
+    if (arg === "--debug" || arg === "-d") {
+      process.env.SMARTSH_DEBUG = "1";
+      continue;
+    }
+    // End of our flags; rest belong to the command
+    cmdParts.push(arg);
+  }
+
+  if (cmdParts.length === 0) {
+    console.error(
+      `${TOOL_NAME}: No command provided. Usage: ${TOOL_NAME} [--translate-only] [--debug] \"echo hello && echo world\"`
+    );
     process.exit(1);
   }
 
-  const originalCommand = args.join(" ");
+  const originalCommand = cmdParts.join(" ");
   const shellInfo = detectShell();
   const commandToRun = translateCommand(originalCommand, shellInfo);
+
+  if (translateOnly) {
+    console.log(commandToRun);
+    return;
+  }
 
   runInShell(shellInfo, commandToRun);
 }

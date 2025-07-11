@@ -231,4 +231,40 @@ describe("translateCommand with Unix commands", () => {
       "echo foo | Tee-Object -FilePath -Append out.txt"
     );
   });
+
+  test("translates sed substitution", () => {
+    expect(translateCommand("sed 's/foo/bar/' file.txt", ps7)).toBe(
+      "-replace 'foo','bar' file.txt"
+    );
+  });
+
+  test("translates pipeline with sed", () => {
+    expect(translateCommand("echo foo | sed 's/foo/bar/'", ps7)).toBe(
+      "echo foo | -replace 'foo','bar'"
+    );
+  });
+
+  test("translates sed substitution with g flag", () => {
+    expect(translateCommand("sed 's/foo/bar/g' file.txt", ps7)).toBe(
+      "-replace 'foo','bar' file.txt"
+    );
+  });
+
+  test("translates sed substitution with # delimiter", () => {
+    expect(translateCommand("sed 's#foo#bar#' file.txt", ps7)).toBe(
+      "-replace 'foo','bar' file.txt"
+    );
+  });
+
+  test("translates head -c N", () => {
+    expect(translateCommand("head -c 7 file.txt", ps7)).toBe(
+      "Select-Object -First 7 file.txt"
+    );
+  });
+
+  test("translates awk print $1", () => {
+    expect(translateCommand("awk '{print $1}'", ps7)).toBe(
+      "ForEach-Object { $_.Split()[0] }"
+    );
+  });
 }); 

@@ -83,4 +83,37 @@ Yes, that means one-liners like:
 sm "ls -la | grep .js | head -10 > js.txt"
 ```
 
-…will Just Work™ on PowerShell 5. 
+…will Just Work™ on PowerShell 5.
+
+---
+
+## smartsh vs. WSL (and why both exist)
+
+**smartsh** is like a **universal plug adapter** — it lets everyday Unix one-liners run *natively* on Windows (PowerShell/CMD) **without** installing a full Linux environment.
+
+**WSL** is more like running a Linux laptop *inside* Windows: perfect when you need the entire Linux tool-chain, but heavyweight when your goal is simply “make `rm -rf dist && npm run build` work everywhere”.
+
+### When should I reach for smartsh?
+
+* You just need tutorial commands like `rm -rf dist && npm run build` to work everywhere.
+* Your CI pipeline runs on multiple OSes (GitHub Actions Windows runner, etc.).
+* Teammates aren’t comfortable installing/maintaining WSL.
+* You’re on a corporate machine where WSL is blocked by policy.
+
+### smartsh in the tool landscape
+
+| Tool | Core idea (plain English) |
+|------|---------------------------|
+| **smartsh** | “Write your usual shell commands — I’ll translate them so they work everywhere.” |
+| **WSL** | “Run a full Linux distro inside Windows.” |
+| **shx** | “Do basic Unix file ops (`rm`, `cp`, …) safely in npm scripts on Windows.” |
+| **dax-sh / zx / shelljs** | “Write shell-style scripts in JavaScript/TypeScript.” |
+
+### Quick cross-platform snippet
+
+```bash
+# Works unchanged on Windows PowerShell <7, Mac, Linux, CI runners…
+sm "rm -rf dist && npm run build && cp -r src/* dist/"
+```
+
+--- 

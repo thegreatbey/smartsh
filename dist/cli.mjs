@@ -13,41 +13,73 @@ var __commonJS = (cb, mod) => function __require2() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
 
-// src/unixMappings.ts
-function tokenize(segment) {
+// src/tokenize.ts
+import { parse as shellParse } from "shell-quote";
+function tokenizeWithPos(cmd) {
   const tokens = [];
-  let current = "";
-  let quote = null;
-  for (let i = 0; i < segment.length; i++) {
-    const ch = segment[i];
-    if (quote) {
-      current += ch;
-      if (ch === quote) {
-        quote = null;
+  let cursor = 0;
+  for (const tok of shellParse(cmd)) {
+    if (typeof tok === "object" && "op" in tok) {
+      const op = tok.op;
+      if (op === "glob") {
+        const pattern = tok.pattern;
+        const idx = cmd.indexOf(pattern, cursor);
+        tokens.push({ value: pattern, start: idx, end: idx + pattern.length });
+        cursor = idx + pattern.length;
+      } else {
+        const idx = cmd.indexOf(op, cursor);
+        tokens.push({ value: op, start: idx, end: idx + op.length });
+        cursor = idx + op.length;
       }
-      continue;
+    } else {
+      const strTok = String(tok);
+      const idx = cmd.indexOf(strTok, cursor);
+      const qt = tok == null ? void 0 : tok.quote;
+      const quoteChar = qt === "'" || qt === '"' ? qt : void 0;
+      tokens.push({ value: strTok, start: idx, end: idx + strTok.length, quoteType: quoteChar });
+      cursor = idx + strTok.length;
     }
-    if (ch === "'" || ch === '"') {
-      quote = ch;
-      current += ch;
-      continue;
-    }
-    if (/\s/.test(ch)) {
-      if (current) {
-        tokens.push(current);
-        current = "";
-      }
-      continue;
-    }
-    current += ch;
   }
-  if (current) tokens.push(current);
   return tokens;
 }
+function tagTokenRoles(tokens) {
+  const out = [];
+  let expectCmd = true;
+  for (const t of tokens) {
+    if (OPS.has(t.value)) {
+      out.push({ ...t, role: "op" });
+      expectCmd = true;
+      continue;
+    }
+    if (expectCmd) {
+      out.push({ ...t, role: "cmd" });
+      expectCmd = false;
+      continue;
+    }
+    if (t.value.startsWith("-") && t.value.length > 1 && t.quoteType === void 0) {
+      out.push({ ...t, role: "flag" });
+    } else {
+      out.push({ ...t, role: "arg" });
+    }
+  }
+  return out;
+}
+var OPS;
+var init_tokenize = __esm({
+  "src/tokenize.ts"() {
+    "use strict";
+    OPS = /* @__PURE__ */ new Set(["&&", "||", "|", ";", "|&"]);
+  }
+});
+
+// src/unixMappings.ts
 function translateSingleUnixSegment(segment) {
-  const tokens = tokenize(segment);
-  if (tokens.length === 0) return segment;
-  const cmd = tokens[0];
+  const roleTokens = tagTokenRoles(tokenizeWithPos(segment));
+  if (roleTokens.length === 0) return segment;
+  const tokens = roleTokens.map((t) => t.value);
+  const cmdToken = roleTokens.find((t) => t.role === "cmd");
+  if (!cmdToken) return segment;
+  const cmd = cmdToken.value;
   if (cmd === "head" || cmd === "tail") {
     let count;
     for (let i = 1; i < tokens.length; i++) {
@@ -60,16 +92,26 @@ function translateSingleUnixSegment(segment) {
         count = parseInt(tokens[i + 1], 10);
         break;
       }
+      if (tok === "-c" && i + 1 < tokens.length) {
+        count = parseInt(tokens[i + 1], 10);
+        break;
+      }
+      if (/^-n\d+$/.test(tok)) {
+        count = parseInt(tok.slice(2), 10);
+        break;
+      }
+      if (/^-c\d+$/.test(tok)) {
+        count = parseInt(tok.slice(2), 10);
+        break;
+      }
     }
-    if (!count || isNaN(count)) {
-      return segment;
-    }
+    if (!count || isNaN(count)) return segment;
     const flag = cmd === "head" ? "-First" : "-Last";
-    const targetArgs = tokens.slice(1).filter((t) => {
-      if (t.startsWith("-")) return false;
-      if (t === String(count)) return false;
+    const targetArgs = roleTokens.slice(1).filter((t) => {
+      if (t.role === "flag") return false;
+      if (t.value === String(count)) return false;
       return true;
-    });
+    }).map((t) => t.value);
     const psCmd = `Select-Object ${flag} ${count}`;
     return [psCmd, ...targetArgs].join(" ");
   }
@@ -86,10 +128,39 @@ function translateSingleUnixSegment(segment) {
   if (cmd === "whoami") {
     return "$env:USERNAME";
   }
+  if (cmd === "sed" && tokens.length >= 2) {
+    const script = tokens[1];
+    const unq = script.startsWith("'") || script.startsWith('"') ? script.slice(1, -1) : script;
+    if (unq.startsWith("s")) {
+      const delim = unq[1];
+      const parts = unq.slice(2).split(delim);
+      if (parts.length >= 2) {
+        const pattern = parts[0];
+        const replacement = parts[1];
+        const restArgs = tokens.slice(2);
+        const psPart = `-replace '${pattern}','${replacement}'`;
+        return [psPart, ...restArgs].join(" ");
+      }
+    }
+  }
+  if (cmd === "awk" && tokens.length >= 2) {
+    const scriptTok = tokens[1];
+    const unq = scriptTok.startsWith("'") || scriptTok.startsWith('"') ? scriptTok.slice(1, -1) : scriptTok;
+    const m = unq.match(/^\{\s*print\s+\$(\d+)\s*\}$/);
+    if (m) {
+      const fieldIdx = parseInt(m[1], 10);
+      if (!isNaN(fieldIdx) && fieldIdx >= 1) {
+        const zeroBased = fieldIdx - 1;
+        const restArgs = tokens.slice(2);
+        const psPart = `ForEach-Object { $_.Split()[${zeroBased}] }`;
+        return [psPart, ...restArgs].join(" ");
+      }
+    }
+  }
   const mapping = MAPPINGS.find((m) => m.unix === cmd);
   if (!mapping) return segment;
-  const flagTokens = tokens.slice(1).filter((t) => t.startsWith("-"));
-  const argTokens = tokens.slice(1).filter((t) => !t.startsWith("-"));
+  const flagTokens = roleTokens.filter((t) => t.role === "flag").map((t) => t.value);
+  const argTokens = roleTokens.filter((t) => t.role === "arg").map((t) => t.value);
   let psFlags = "";
   for (const flagTok of flagTokens) {
     const mapped = mapping.flagMap[flagTok];
@@ -105,10 +176,11 @@ function translateSingleUnixSegment(segment) {
   const psCommand = `${mapping.ps}${psFlags}`.trim();
   return [psCommand, ...argTokens].join(" ");
 }
-var RM_MAPPING, MKDIR_MAPPING, LS_MAPPING, CP_MAPPING, MV_MAPPING, TOUCH_MAPPING, GREP_MAPPING, CAT_MAPPING, WHICH_MAPPING, SORT_MAPPING, UNIQ_MAPPING, FIND_MAPPING, PWD_MAPPING, DATE_MAPPING, CLEAR_MAPPING, PS_MAPPING, KILL_MAPPING, DF_MAPPING, HOSTNAME_MAPPING, MAPPINGS;
+var RM_MAPPING, MKDIR_MAPPING, LS_MAPPING, CP_MAPPING, MV_MAPPING, TOUCH_MAPPING, GREP_MAPPING, CAT_MAPPING, WHICH_MAPPING, SORT_MAPPING, UNIQ_MAPPING, FIND_MAPPING, PWD_MAPPING, DATE_MAPPING, CLEAR_MAPPING, PS_MAPPING, KILL_MAPPING, DF_MAPPING, HOSTNAME_MAPPING, DIRNAME_MAPPING, BASENAME_MAPPING, TEE_MAPPING, MAPPINGS;
 var init_unixMappings = __esm({
   "src/unixMappings.ts"() {
     "use strict";
+    init_tokenize();
     RM_MAPPING = {
       unix: "rm",
       ps: "Remove-Item",
@@ -254,6 +326,26 @@ var init_unixMappings = __esm({
       flagMap: {},
       forceArgs: false
     };
+    DIRNAME_MAPPING = {
+      unix: "dirname",
+      ps: "Split-Path -Parent",
+      flagMap: {},
+      forceArgs: true
+    };
+    BASENAME_MAPPING = {
+      unix: "basename",
+      ps: "Split-Path -Leaf",
+      flagMap: {},
+      forceArgs: true
+    };
+    TEE_MAPPING = {
+      unix: "tee",
+      ps: "Tee-Object -FilePath",
+      flagMap: {
+        "-a": "-Append"
+      },
+      forceArgs: true
+    };
     MAPPINGS = [
       RM_MAPPING,
       MKDIR_MAPPING,
@@ -273,7 +365,10 @@ var init_unixMappings = __esm({
       PS_MAPPING,
       KILL_MAPPING,
       DF_MAPPING,
-      HOSTNAME_MAPPING
+      HOSTNAME_MAPPING,
+      DIRNAME_MAPPING,
+      BASENAME_MAPPING,
+      TEE_MAPPING
     ];
   }
 });
@@ -335,6 +430,14 @@ function detectShell() {
       debugLog("Detected CMD via PROMPT env.");
       return { type: "cmd", supportsConditionalConnectors: true };
     }
+    if (process.env.PSModulePath) {
+      const version2 = getPowerShellVersionSync();
+      return {
+        type: "powershell",
+        version: version2,
+        supportsConditionalConnectors: version2 !== null && version2 >= 7
+      };
+    }
     const comspec = (_a2 = process.env.ComSpec) == null ? void 0 : _a2.toLowerCase();
     if (comspec == null ? void 0 : comspec.includes("cmd.exe")) {
       debugLog("Detected CMD via ComSpec path.");
@@ -376,109 +479,34 @@ function translateCommand(command, shell) {
 }
 function splitByConnectors(cmd) {
   const parts = [];
-  let current = "";
-  let quote = null;
-  for (let i = 0; i < cmd.length; i++) {
-    const ch = cmd[i];
-    if (quote) {
-      if (ch === "\\") {
-        current += ch;
-        if (i + 1 < cmd.length) {
-          current += cmd[i + 1];
-          i++;
-        }
-        continue;
-      }
-      if (ch === quote) {
-        quote = null;
-      }
-      current += ch;
-      continue;
+  const tokens = tokenizeWithPos(cmd);
+  let segmentStart = 0;
+  for (const t of tokens) {
+    if (t.value === "&&" || t.value === "||") {
+      const chunk = cmd.slice(segmentStart, t.start).trim();
+      if (chunk) parts.push(chunk);
+      parts.push(t.value);
+      segmentStart = t.end;
     }
-    if (ch === "'" || ch === '"') {
-      quote = ch;
-      current += ch;
-      continue;
-    }
-    if (ch === "\\" || ch === "`") {
-      current += ch;
-      if (i + 1 < cmd.length) {
-        current += cmd[i + 1];
-        i++;
-      }
-      continue;
-    }
-    const next = cmd[i + 1];
-    if (ch === "&" && next === "&") {
-      const chunk = current.trim();
-      if (chunk) {
-        parts.push(chunk);
-      }
-      parts.push("&&");
-      current = "";
-      i++;
-      continue;
-    }
-    if (ch === "|" && next === "|") {
-      const chunk = current.trim();
-      if (chunk) {
-        parts.push(chunk);
-      }
-      parts.push("||");
-      current = "";
-      i++;
-      continue;
-    }
-    current += ch;
   }
-  const finalChunk = current.trim();
-  if (finalChunk) {
-    parts.push(finalChunk);
-  }
+  const last = cmd.slice(segmentStart).trim();
+  if (last) parts.push(last);
   return parts;
 }
 function splitByPipe(segment) {
+  const tokens = tagTokenRoles(tokenizeWithPos(segment));
   const parts = [];
   let current = "";
-  let quote = null;
-  for (let i = 0; i < segment.length; i++) {
-    const ch = segment[i];
-    if (quote) {
-      if (ch === "\\") {
-        current += ch;
-        if (i + 1 < segment.length) {
-          current += segment[i + 1];
-          i++;
-        }
-        continue;
-      }
-      if (ch === quote) {
-        quote = null;
-      }
-      current += ch;
-      continue;
+  let lastEnd = 0;
+  for (const t of tokens) {
+    if (t.role === "op" && t.value === "|") {
+      const before = segment.slice(lastEnd, t.start).trim();
+      parts.push(before);
+      lastEnd = t.end;
     }
-    if (ch === "'" || ch === '"') {
-      quote = ch;
-      current += ch;
-      continue;
-    }
-    if (ch === "\\" || ch === "`") {
-      current += ch;
-      if (i + 1 < segment.length) {
-        current += segment[i + 1];
-        i++;
-      }
-      continue;
-    }
-    if (ch === "|") {
-      parts.push(current.trim());
-      current = "";
-      continue;
-    }
-    current += ch;
   }
-  parts.push(current.trim());
+  const tail = segment.slice(lastEnd).trim();
+  if (tail) parts.push(tail);
   return parts;
 }
 function translateForLegacyPowerShell(command) {
@@ -501,6 +529,7 @@ var init_translate = __esm({
   "src/translate.ts"() {
     "use strict";
     init_unixMappings();
+    init_tokenize();
     OVERRIDE_SHELL = (_a = process.env.SMARTSH_SHELL) == null ? void 0 : _a.toLowerCase();
     DEBUG = process.env.SMARTSH_DEBUG === "1" || process.env.SMARTSH_DEBUG === "true";
   }
@@ -545,14 +574,35 @@ var require_cli = __commonJS({
       });
     }
     function main() {
-      const args = process.argv.slice(2);
-      if (args.length === 0) {
-        console.error(`${TOOL_NAME}: No command provided. Usage: ${TOOL_NAME} "echo hello && echo world"`);
+      const rawArgs = process.argv.slice(2);
+      let translateOnly = false;
+      const cmdParts = [];
+      let i = 0;
+      for (; i < rawArgs.length; i++) {
+        const arg = rawArgs[i];
+        if (arg === "--translate-only" || arg === "-t") {
+          translateOnly = true;
+          continue;
+        }
+        if (arg === "--debug" || arg === "-d") {
+          process.env.SMARTSH_DEBUG = "1";
+          continue;
+        }
+        cmdParts.push(arg);
+      }
+      if (cmdParts.length === 0) {
+        console.error(
+          `${TOOL_NAME}: No command provided. Usage: ${TOOL_NAME} [--translate-only] [--debug] "echo hello && echo world"`
+        );
         process.exit(1);
       }
-      const originalCommand = args.join(" ");
+      const originalCommand = cmdParts.join(" ");
       const shellInfo = detectShell();
       const commandToRun = translateCommand(originalCommand, shellInfo);
+      if (translateOnly) {
+        console.log(commandToRun);
+        return;
+      }
       runInShell(shellInfo, commandToRun);
     }
     if (__require.main === module) {
