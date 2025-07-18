@@ -1,5 +1,8 @@
 #!/usr/bin/env node
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
   get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
 }) : x)(function(x) {
@@ -12,6 +15,19 @@ var __esm = (fn, res) => function __init() {
 var __commonJS = (cb, mod) => function __require2() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/tokenize.ts
 import { parse as shellParse } from "shell-quote";
@@ -80,6 +96,12 @@ var init_tokenize = __esm({
 });
 
 // src/unixMappings.ts
+function addExtraMappings(maps) {
+  for (const m of maps) {
+    if (BASE_MAPPINGS.some((x) => x.unix === m.unix) || EXTRA_MAPPINGS.some((x) => x.unix === m.unix)) continue;
+    EXTRA_MAPPINGS.push(m);
+  }
+}
 function smartJoin(tokens) {
   const merged = [];
   for (let i = 0; i < tokens.length; i++) {
@@ -408,7 +430,7 @@ function translateSingleUnixSegment(segment) {
     const psCmd = ["ForEach-Object {", subCmd, ...subArgs, "$_", "}"];
     return smartJoinEnhanced(psCmd);
   }
-  const mapping = MAPPINGS.find((m) => m.unix === cmd);
+  const mapping = [...BASE_MAPPINGS, ...EXTRA_MAPPINGS].find((m) => m.unix === cmd);
   if (!mapping) return segment;
   const flagTokens = earlyFlagTokens;
   const argTokens = earlyArgTokens;
@@ -427,7 +449,7 @@ function translateSingleUnixSegment(segment) {
   const psCommand = `${mapping.ps}${psFlags}`.trim();
   return smartJoinEnhanced([psCommand, ...argTokens]);
 }
-var RM_MAPPING, MKDIR_MAPPING, LS_MAPPING, CP_MAPPING, MV_MAPPING, TOUCH_MAPPING, GREP_MAPPING, CAT_MAPPING, WHICH_MAPPING, SORT_MAPPING, UNIQ_MAPPING, FIND_MAPPING, PWD_MAPPING, DATE_MAPPING, CLEAR_MAPPING, PS_MAPPING, KILL_MAPPING, DF_MAPPING, HOSTNAME_MAPPING, DIRNAME_MAPPING, BASENAME_MAPPING, TEE_MAPPING, MAPPINGS, originalSmartJoin;
+var RM_MAPPING, MKDIR_MAPPING, LS_MAPPING, CP_MAPPING, MV_MAPPING, TOUCH_MAPPING, GREP_MAPPING, CAT_MAPPING, WHICH_MAPPING, SORT_MAPPING, UNIQ_MAPPING, FIND_MAPPING, PWD_MAPPING, DATE_MAPPING, CLEAR_MAPPING, PS_MAPPING, KILL_MAPPING, DF_MAPPING, HOSTNAME_MAPPING, DIRNAME_MAPPING, BASENAME_MAPPING, TEE_MAPPING, BASE_MAPPINGS, EXTRA_MAPPINGS, MAPPINGS, originalSmartJoin;
 var init_unixMappings = __esm({
   "src/unixMappings.ts"() {
     "use strict";
@@ -606,7 +628,7 @@ var init_unixMappings = __esm({
       },
       forceArgs: true
     };
-    MAPPINGS = [
+    BASE_MAPPINGS = [
       RM_MAPPING,
       MKDIR_MAPPING,
       LS_MAPPING,
@@ -630,11 +652,63 @@ var init_unixMappings = __esm({
       BASENAME_MAPPING,
       TEE_MAPPING
     ];
+    EXTRA_MAPPINGS = [];
+    MAPPINGS = [...BASE_MAPPINGS, ...EXTRA_MAPPINGS];
     originalSmartJoin = smartJoin;
   }
 });
 
 // src/translate.ts
+var translate_exports = {};
+__export(translate_exports, {
+  __test_splitByConnectors: () => splitByConnectors,
+  detectShell: () => detectShell,
+  lintCommand: () => lintCommand,
+  translateCommand: () => translateCommand
+});
+function lintCommand(cmd) {
+  const unsupported = [];
+  const STATIC_ALLOWED_FLAGS = Object.fromEntries(
+    MAPPINGS.map((m) => [m.unix, new Set(Object.keys(m.flagMap))])
+  );
+  const DYNAMIC_ALLOWED_FLAGS = {
+    uniq: /* @__PURE__ */ new Set(["-c"]),
+    sort: /* @__PURE__ */ new Set(["-n"]),
+    cut: /* @__PURE__ */ new Set(["-d", "-f"]),
+    tr: /* @__PURE__ */ new Set([]),
+    find: /* @__PURE__ */ new Set(["-name", "-type", "-delete", "-exec"]),
+    xargs: /* @__PURE__ */ new Set(["-0"]),
+    sed: /* @__PURE__ */ new Set(["-n"])
+  };
+  const connectorParts = splitByConnectors(cmd).filter((p) => p !== "&&" && p !== "||");
+  for (const part of connectorParts) {
+    const pipeParts = splitByPipe(part);
+    for (const seg of pipeParts) {
+      const trimmed = seg.trim();
+      if (!trimmed) continue;
+      if (trimmed.startsWith("(") || trimmed.startsWith("{")) continue;
+      const tokens = tagTokenRoles(tokenizeWithPos(trimmed));
+      const cmdTok = tokens.find((t) => t.role === "cmd");
+      if (!cmdTok) continue;
+      const c = cmdTok.value;
+      if (!SUPPORTED_COMMANDS.has(c)) {
+        unsupported.push(`${trimmed} (unknown command)`);
+        continue;
+      }
+      const allowedFlags = STATIC_ALLOWED_FLAGS[c] ?? DYNAMIC_ALLOWED_FLAGS[c];
+      if (allowedFlags) {
+        const flagToks = tokens.filter((t) => t.role === "flag");
+        for (const fTok of flagToks) {
+          if (!allowedFlags.has(fTok.value)) {
+            unsupported.push(`${trimmed} (unsupported flag: ${fTok.value})`);
+            break;
+          }
+        }
+      }
+    }
+  }
+  return { unsupported };
+}
 function debugLog(...args) {
   if (DEBUG) {
     console.log("[smartsh/sm debug]", ...args);
@@ -801,24 +875,93 @@ function translateForLegacyPowerShell(command) {
   }
   return script;
 }
-var _a, OVERRIDE_SHELL, DEBUG;
+var DYNAMIC_CMDS, SUPPORTED_COMMANDS, _a, OVERRIDE_SHELL, DEBUG;
 var init_translate = __esm({
   "src/translate.ts"() {
     "use strict";
     init_unixMappings();
     init_tokenize();
+    init_unixMappings();
+    DYNAMIC_CMDS = [
+      "head",
+      "tail",
+      "wc",
+      "sleep",
+      "whoami",
+      "sed",
+      "awk",
+      "cut",
+      "tr",
+      "uniq",
+      "sort",
+      "find",
+      "xargs",
+      "echo"
+    ];
+    SUPPORTED_COMMANDS = /* @__PURE__ */ new Set([...MAPPINGS.map((m) => m.unix), ...DYNAMIC_CMDS]);
     OVERRIDE_SHELL = (_a = process.env.SMARTSH_SHELL) == null ? void 0 : _a.toLowerCase();
     DEBUG = process.env.SMARTSH_DEBUG === "1" || process.env.SMARTSH_DEBUG === "true";
   }
 });
 
-// src/cli.ts
+// src/config.ts
+import fs from "fs";
 import path from "path";
+import os from "os";
+function readJson(filePath) {
+  try {
+    const txt = fs.readFileSync(filePath, "utf8");
+    return JSON.parse(txt);
+  } catch {
+    return null;
+  }
+}
+function initConfig() {
+  const home = os.homedir();
+  const candidates = [
+    path.join(home, ".smartshrc"),
+    path.join(home, ".smartshrc.json"),
+    path.join(home, ".smartshrc.js"),
+    path.join(home, ".smartshrc.cjs")
+  ];
+  let cfg = null;
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      if (p.endsWith(".js") || p.endsWith(".cjs")) {
+        try {
+          const mod = __require(p);
+          if (typeof mod === "function") {
+            cfg = mod({ addExtraMappings });
+          } else {
+            cfg = mod;
+          }
+        } catch {
+          cfg = null;
+        }
+      } else {
+        cfg = readJson(p);
+      }
+      if (cfg) break;
+    }
+  }
+  if ((cfg == null ? void 0 : cfg.mappings) && Array.isArray(cfg.mappings)) {
+    addExtraMappings(cfg.mappings);
+  }
+}
+var init_config = __esm({
+  "src/config.ts"() {
+    "use strict";
+    init_unixMappings();
+  }
+});
+
+// src/cli.ts
 import { spawn } from "child_process";
 var require_cli = __commonJS({
   "src/cli.ts"(exports, module) {
     init_translate();
-    var TOOL_NAME = path.basename(process.argv[1] ?? "smartsh");
+    init_config();
+    var TOOL_NAME = "smartsh";
     function runInShell(shellInfo, command) {
       if (shellInfo.type === "powershell") {
         const exe = shellInfo.version && shellInfo.version >= 7 ? "pwsh" : "powershell";
@@ -851,21 +994,46 @@ var require_cli = __commonJS({
       });
     }
     function main() {
+      initConfig();
       const rawArgs = process.argv.slice(2);
       let translateOnly = false;
       const cmdParts = [];
       let i = 0;
+      let lintOnly = false;
+      let completionShell = null;
       for (; i < rawArgs.length; i++) {
         const arg = rawArgs[i];
         if (arg === "--translate-only" || arg === "-t") {
           translateOnly = true;
           continue;
         }
+        if (arg === "--lint" || arg === "-l") {
+          lintOnly = true;
+          continue;
+        }
         if (arg === "--debug" || arg === "-d") {
           process.env.SMARTSH_DEBUG = "1";
           continue;
         }
+        if (arg.startsWith("--completion")) {
+          if (arg.includes("=")) {
+            completionShell = arg.split("=")[1];
+          } else if (i + 1 < rawArgs.length) {
+            completionShell = rawArgs[i + 1];
+            i++;
+          }
+          continue;
+        }
         cmdParts.push(arg);
+      }
+      if (completionShell) {
+        const script = generateCompletionScript(completionShell);
+        if (!script) {
+          console.error(`${TOOL_NAME}: Unknown shell '${completionShell}'. Supported shells: bash, zsh, powershell`);
+          process.exit(1);
+        }
+        console.log(script);
+        process.exit(0);
       }
       if (cmdParts.length === 0) {
         console.error(
@@ -875,12 +1043,76 @@ var require_cli = __commonJS({
       }
       const originalCommand = cmdParts.join(" ");
       const shellInfo = detectShell();
+      if (lintOnly) {
+        const { lintCommand: lintCommand2 } = (init_translate(), __toCommonJS(translate_exports));
+        const res = lintCommand2(originalCommand);
+        if (res.unsupported.length === 0) {
+          console.log("\u2714 All segments are supported.");
+          process.exit(0);
+        }
+        console.error("\u2716 Unsupported segments detected:");
+        for (const seg of res.unsupported) {
+          console.error("  -", seg);
+        }
+        process.exit(1);
+      }
       const commandToRun = translateCommand(originalCommand, shellInfo);
       if (translateOnly) {
         console.log(commandToRun);
         return;
       }
       runInShell(shellInfo, commandToRun);
+    }
+    function generateCompletionScript(shell) {
+      const flags = [
+        "--translate-only",
+        "-t",
+        "--lint",
+        "-l",
+        "--debug",
+        "-d",
+        "--completion"
+      ];
+      switch (shell) {
+        case "bash":
+          return `# bash completion for smartsh
+_smartsh_complete() {
+  local cur="\${COMP_WORDS[COMP_CWORD]}"
+  local opts="${flags.join(" ")}"
+  COMPREPLY=( $(compgen -W "$opts" -- $cur) )
+  return 0
+}
+complete -F _smartsh_complete smartsh sm`;
+        case "zsh":
+          return `#compdef smartsh sm
+_arguments '*::options:->options'
+case $state in
+  options)
+    local opts=(
+      '--translate-only[Translate but do not execute]'
+      '-t[Translate but do not execute]'
+      '--lint[Lint command for unsupported segments]'
+      '-l[Lint command]'
+      '--debug[Enable debug output]'
+      '-d[Enable debug output]'
+      '--completion=[Generate completion script]:shell:(bash zsh powershell)'
+    )
+    _describe 'options' opts
+  ;;
+esac`;
+        case "powershell":
+        case "pwsh":
+          return `# PowerShell completion for smartsh
+Register-ArgumentCompleter -CommandName smartsh, sm -ScriptBlock {
+    param($wordToComplete, $commandAst, $cursorPosition)
+    $opts = ${flags.map((f) => `'${f}'`).join(", ")}
+    $opts | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+        [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterName', $_)
+    }
+}`;
+        default:
+          return null;
+      }
     }
     if (__require.main === module) {
       main();

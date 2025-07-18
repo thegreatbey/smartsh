@@ -3,9 +3,8 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { initConfig } from "./config";
 
-// Determine the actual invoked binary name so that error/help messages
-// correctly display either "smartsh" or its alias "sm".
-const TOOL_NAME = path.basename(process.argv[1] ?? "smartsh");
+// Use consistent branding in error messages
+const TOOL_NAME = "smartsh";
 
 function runInShell(shellInfo: ReturnType<typeof detectShell>, command: string): void {
   if (shellInfo.type === "powershell") {
@@ -88,15 +87,6 @@ function main() {
     cmdParts.push(arg);
   }
 
-  if (cmdParts.length === 0) {
-    console.error(
-      `${TOOL_NAME}: No command provided. Usage: ${TOOL_NAME} [--translate-only] [--debug] \"echo hello && echo world\"`
-    );
-    process.exit(1);
-  }
-
-  const originalCommand = cmdParts.join(" ");
-
   // ---------------------------
   // Completion script generation
   // ---------------------------
@@ -109,6 +99,15 @@ function main() {
     console.log(script);
     process.exit(0);
   }
+
+  if (cmdParts.length === 0) {
+    console.error(
+      `${TOOL_NAME}: No command provided. Usage: ${TOOL_NAME} [--translate-only] [--debug] \"echo hello && echo world\"`
+    );
+    process.exit(1);
+  }
+
+  const originalCommand = cmdParts.join(" ");
 
   const shellInfo = detectShell();
   if (lintOnly) {

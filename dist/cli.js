@@ -6,6 +6,13 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
 var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
     for (let key of __getOwnPropNames(from))
@@ -22,9 +29,9 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
   mod
 ));
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/tokenize.ts
-var import_shell_quote = require("shell-quote");
 function tokenizeWithPos(cmd) {
   const tokens = [];
   let cursor = 0;
@@ -52,7 +59,6 @@ function tokenizeWithPos(cmd) {
   }
   return tokens;
 }
-var OPS = /* @__PURE__ */ new Set(["&&", "||", "|", ";", "|&"]);
 function isRedirectionToken(val) {
   return /^(\d*>>?&?\d*|[<>]{1,2}|&>?)$/.test(val);
 }
@@ -82,206 +88,22 @@ function tagTokenRoles(tokens) {
   }
   return out;
 }
+var import_shell_quote, OPS;
+var init_tokenize = __esm({
+  "src/tokenize.ts"() {
+    "use strict";
+    import_shell_quote = require("shell-quote");
+    OPS = /* @__PURE__ */ new Set(["&&", "||", "|", ";", "|&"]);
+  }
+});
 
 // src/unixMappings.ts
-var RM_MAPPING = {
-  unix: "rm",
-  ps: "Remove-Item",
-  flagMap: {
-    "-rf": "-Recurse -Force",
-    "-fr": "-Recurse -Force",
-    "-r": "-Recurse",
-    "-f": "-Force"
-  },
-  forceArgs: true
-};
-var MKDIR_MAPPING = {
-  unix: "mkdir",
-  ps: "New-Item -ItemType Directory",
-  flagMap: {
-    "-p": "-Force"
+function addExtraMappings(maps) {
+  for (const m of maps) {
+    if (BASE_MAPPINGS.some((x) => x.unix === m.unix) || EXTRA_MAPPINGS.some((x) => x.unix === m.unix)) continue;
+    EXTRA_MAPPINGS.push(m);
   }
-};
-var LS_MAPPING = {
-  unix: "ls",
-  ps: "Get-ChildItem",
-  flagMap: {
-    "-la": "-Force",
-    "-al": "-Force",
-    "-a": "-Force",
-    "-l": ""
-  }
-};
-var CP_MAPPING = {
-  unix: "cp",
-  ps: "Copy-Item",
-  flagMap: {
-    "-r": "-Recurse",
-    "-R": "-Recurse",
-    "-f": "-Force",
-    "-rf": "-Recurse -Force",
-    "-fr": "-Recurse -Force"
-  },
-  forceArgs: true
-};
-var MV_MAPPING = {
-  unix: "mv",
-  ps: "Move-Item",
-  flagMap: {},
-  forceArgs: true
-};
-var TOUCH_MAPPING = {
-  unix: "touch",
-  ps: "New-Item -ItemType File",
-  flagMap: {},
-  forceArgs: true
-};
-var GREP_MAPPING = {
-  unix: "grep",
-  ps: "Select-String",
-  flagMap: {
-    "-i": "-CaseSensitive:$false",
-    "-n": "-LineNumber",
-    "-in": "-CaseSensitive:$false -LineNumber",
-    "-ni": "-CaseSensitive:$false -LineNumber",
-    "-v": "-NotMatch",
-    "-iv": "-CaseSensitive:$false -NotMatch",
-    "-vn": "-CaseSensitive:$false -LineNumber",
-    "-vni": "-CaseSensitive:$false -NotMatch -LineNumber",
-    "-q": "-Quiet",
-    "-iq": "-CaseSensitive:$false -Quiet",
-    "-qi": "-CaseSensitive:$false -Quiet",
-    "-E": "",
-    "-F": "-SimpleMatch"
-  },
-  forceArgs: true
-};
-var CAT_MAPPING = {
-  unix: "cat",
-  ps: "Get-Content",
-  flagMap: {},
-  forceArgs: true
-};
-var WHICH_MAPPING = {
-  unix: "which",
-  ps: "Get-Command",
-  flagMap: {},
-  forceArgs: true
-};
-var SORT_MAPPING = {
-  unix: "sort",
-  ps: "Sort-Object",
-  flagMap: {},
-  forceArgs: false
-};
-var UNIQ_MAPPING = {
-  unix: "uniq",
-  ps: "Select-Object -Unique",
-  flagMap: {},
-  forceArgs: false
-};
-var FIND_MAPPING = {
-  unix: "find",
-  ps: "Get-ChildItem -Recurse",
-  flagMap: {
-    "-name": "-Filter",
-    // maps -name pattern
-    "-type": ""
-    // we ignore -type for now
-  },
-  forceArgs: true
-};
-var PWD_MAPPING = {
-  unix: "pwd",
-  ps: "Get-Location",
-  flagMap: {},
-  forceArgs: false
-};
-var DATE_MAPPING = {
-  unix: "date",
-  ps: "Get-Date",
-  flagMap: {},
-  forceArgs: false
-};
-var CLEAR_MAPPING = {
-  unix: "clear",
-  ps: "Clear-Host",
-  flagMap: {},
-  forceArgs: false
-};
-var PS_MAPPING = {
-  unix: "ps",
-  ps: "Get-Process",
-  flagMap: {},
-  forceArgs: false
-};
-var KILL_MAPPING = {
-  unix: "kill",
-  ps: "Stop-Process",
-  flagMap: {
-    "-9": "-Force"
-  },
-  forceArgs: true
-};
-var DF_MAPPING = {
-  unix: "df",
-  ps: "Get-PSDrive",
-  flagMap: {
-    "-h": ""
-    // human-readable not needed
-  },
-  forceArgs: false
-};
-var HOSTNAME_MAPPING = {
-  unix: "hostname",
-  ps: "$env:COMPUTERNAME",
-  flagMap: {},
-  forceArgs: false
-};
-var DIRNAME_MAPPING = {
-  unix: "dirname",
-  ps: "Split-Path -Parent",
-  flagMap: {},
-  forceArgs: true
-};
-var BASENAME_MAPPING = {
-  unix: "basename",
-  ps: "Split-Path -Leaf",
-  flagMap: {},
-  forceArgs: true
-};
-var TEE_MAPPING = {
-  unix: "tee",
-  ps: "Tee-Object -FilePath",
-  flagMap: {
-    "-a": "-Append"
-  },
-  forceArgs: true
-};
-var MAPPINGS = [
-  RM_MAPPING,
-  MKDIR_MAPPING,
-  LS_MAPPING,
-  CP_MAPPING,
-  MV_MAPPING,
-  TOUCH_MAPPING,
-  GREP_MAPPING,
-  CAT_MAPPING,
-  WHICH_MAPPING,
-  SORT_MAPPING,
-  UNIQ_MAPPING,
-  FIND_MAPPING,
-  PWD_MAPPING,
-  DATE_MAPPING,
-  CLEAR_MAPPING,
-  PS_MAPPING,
-  KILL_MAPPING,
-  DF_MAPPING,
-  HOSTNAME_MAPPING,
-  DIRNAME_MAPPING,
-  BASENAME_MAPPING,
-  TEE_MAPPING
-];
+}
 function smartJoin(tokens) {
   const merged = [];
   for (let i = 0; i < tokens.length; i++) {
@@ -371,7 +193,6 @@ function mergeEnvExp(tokens) {
   }
   return out;
 }
-var originalSmartJoin = smartJoin;
 function smartJoinEnhanced(tokens) {
   const mergedSubs = mergeCommandSubs(mergeEnvExp(tokens));
   const out = originalSmartJoin(mergedSubs);
@@ -611,7 +432,7 @@ function translateSingleUnixSegment(segment) {
     const psCmd = ["ForEach-Object {", subCmd, ...subArgs, "$_", "}"];
     return smartJoinEnhanced(psCmd);
   }
-  const mapping = MAPPINGS.find((m) => m.unix === cmd);
+  const mapping = [...BASE_MAPPINGS, ...EXTRA_MAPPINGS].find((m) => m.unix === cmd);
   if (!mapping) return segment;
   const flagTokens = earlyFlagTokens;
   const argTokens = earlyArgTokens;
@@ -630,11 +451,266 @@ function translateSingleUnixSegment(segment) {
   const psCommand = `${mapping.ps}${psFlags}`.trim();
   return smartJoinEnhanced([psCommand, ...argTokens]);
 }
+var RM_MAPPING, MKDIR_MAPPING, LS_MAPPING, CP_MAPPING, MV_MAPPING, TOUCH_MAPPING, GREP_MAPPING, CAT_MAPPING, WHICH_MAPPING, SORT_MAPPING, UNIQ_MAPPING, FIND_MAPPING, PWD_MAPPING, DATE_MAPPING, CLEAR_MAPPING, PS_MAPPING, KILL_MAPPING, DF_MAPPING, HOSTNAME_MAPPING, DIRNAME_MAPPING, BASENAME_MAPPING, TEE_MAPPING, BASE_MAPPINGS, EXTRA_MAPPINGS, MAPPINGS, originalSmartJoin;
+var init_unixMappings = __esm({
+  "src/unixMappings.ts"() {
+    "use strict";
+    init_tokenize();
+    RM_MAPPING = {
+      unix: "rm",
+      ps: "Remove-Item",
+      flagMap: {
+        "-rf": "-Recurse -Force",
+        "-fr": "-Recurse -Force",
+        "-r": "-Recurse",
+        "-f": "-Force"
+      },
+      forceArgs: true
+    };
+    MKDIR_MAPPING = {
+      unix: "mkdir",
+      ps: "New-Item -ItemType Directory",
+      flagMap: {
+        "-p": "-Force"
+      }
+    };
+    LS_MAPPING = {
+      unix: "ls",
+      ps: "Get-ChildItem",
+      flagMap: {
+        "-la": "-Force",
+        "-al": "-Force",
+        "-a": "-Force",
+        "-l": ""
+      }
+    };
+    CP_MAPPING = {
+      unix: "cp",
+      ps: "Copy-Item",
+      flagMap: {
+        "-r": "-Recurse",
+        "-R": "-Recurse",
+        "-f": "-Force",
+        "-rf": "-Recurse -Force",
+        "-fr": "-Recurse -Force"
+      },
+      forceArgs: true
+    };
+    MV_MAPPING = {
+      unix: "mv",
+      ps: "Move-Item",
+      flagMap: {},
+      forceArgs: true
+    };
+    TOUCH_MAPPING = {
+      unix: "touch",
+      ps: "New-Item -ItemType File",
+      flagMap: {},
+      forceArgs: true
+    };
+    GREP_MAPPING = {
+      unix: "grep",
+      ps: "Select-String",
+      flagMap: {
+        "-i": "-CaseSensitive:$false",
+        "-n": "-LineNumber",
+        "-in": "-CaseSensitive:$false -LineNumber",
+        "-ni": "-CaseSensitive:$false -LineNumber",
+        "-v": "-NotMatch",
+        "-iv": "-CaseSensitive:$false -NotMatch",
+        "-vn": "-CaseSensitive:$false -LineNumber",
+        "-vni": "-CaseSensitive:$false -NotMatch -LineNumber",
+        "-q": "-Quiet",
+        "-iq": "-CaseSensitive:$false -Quiet",
+        "-qi": "-CaseSensitive:$false -Quiet",
+        "-E": "",
+        "-F": "-SimpleMatch"
+      },
+      forceArgs: true
+    };
+    CAT_MAPPING = {
+      unix: "cat",
+      ps: "Get-Content",
+      flagMap: {},
+      forceArgs: true
+    };
+    WHICH_MAPPING = {
+      unix: "which",
+      ps: "Get-Command",
+      flagMap: {},
+      forceArgs: true
+    };
+    SORT_MAPPING = {
+      unix: "sort",
+      ps: "Sort-Object",
+      flagMap: {},
+      forceArgs: false
+    };
+    UNIQ_MAPPING = {
+      unix: "uniq",
+      ps: "Select-Object -Unique",
+      flagMap: {},
+      forceArgs: false
+    };
+    FIND_MAPPING = {
+      unix: "find",
+      ps: "Get-ChildItem -Recurse",
+      flagMap: {
+        "-name": "-Filter",
+        // maps -name pattern
+        "-type": ""
+        // we ignore -type for now
+      },
+      forceArgs: true
+    };
+    PWD_MAPPING = {
+      unix: "pwd",
+      ps: "Get-Location",
+      flagMap: {},
+      forceArgs: false
+    };
+    DATE_MAPPING = {
+      unix: "date",
+      ps: "Get-Date",
+      flagMap: {},
+      forceArgs: false
+    };
+    CLEAR_MAPPING = {
+      unix: "clear",
+      ps: "Clear-Host",
+      flagMap: {},
+      forceArgs: false
+    };
+    PS_MAPPING = {
+      unix: "ps",
+      ps: "Get-Process",
+      flagMap: {},
+      forceArgs: false
+    };
+    KILL_MAPPING = {
+      unix: "kill",
+      ps: "Stop-Process",
+      flagMap: {
+        "-9": "-Force"
+      },
+      forceArgs: true
+    };
+    DF_MAPPING = {
+      unix: "df",
+      ps: "Get-PSDrive",
+      flagMap: {
+        "-h": ""
+        // human-readable not needed
+      },
+      forceArgs: false
+    };
+    HOSTNAME_MAPPING = {
+      unix: "hostname",
+      ps: "$env:COMPUTERNAME",
+      flagMap: {},
+      forceArgs: false
+    };
+    DIRNAME_MAPPING = {
+      unix: "dirname",
+      ps: "Split-Path -Parent",
+      flagMap: {},
+      forceArgs: true
+    };
+    BASENAME_MAPPING = {
+      unix: "basename",
+      ps: "Split-Path -Leaf",
+      flagMap: {},
+      forceArgs: true
+    };
+    TEE_MAPPING = {
+      unix: "tee",
+      ps: "Tee-Object -FilePath",
+      flagMap: {
+        "-a": "-Append"
+      },
+      forceArgs: true
+    };
+    BASE_MAPPINGS = [
+      RM_MAPPING,
+      MKDIR_MAPPING,
+      LS_MAPPING,
+      CP_MAPPING,
+      MV_MAPPING,
+      TOUCH_MAPPING,
+      GREP_MAPPING,
+      CAT_MAPPING,
+      WHICH_MAPPING,
+      SORT_MAPPING,
+      UNIQ_MAPPING,
+      FIND_MAPPING,
+      PWD_MAPPING,
+      DATE_MAPPING,
+      CLEAR_MAPPING,
+      PS_MAPPING,
+      KILL_MAPPING,
+      DF_MAPPING,
+      HOSTNAME_MAPPING,
+      DIRNAME_MAPPING,
+      BASENAME_MAPPING,
+      TEE_MAPPING
+    ];
+    EXTRA_MAPPINGS = [];
+    MAPPINGS = [...BASE_MAPPINGS, ...EXTRA_MAPPINGS];
+    originalSmartJoin = smartJoin;
+  }
+});
 
 // src/translate.ts
-var _a;
-var OVERRIDE_SHELL = (_a = process.env.SMARTSH_SHELL) == null ? void 0 : _a.toLowerCase();
-var DEBUG = process.env.SMARTSH_DEBUG === "1" || process.env.SMARTSH_DEBUG === "true";
+var translate_exports = {};
+__export(translate_exports, {
+  __test_splitByConnectors: () => splitByConnectors,
+  detectShell: () => detectShell,
+  lintCommand: () => lintCommand,
+  translateCommand: () => translateCommand
+});
+function lintCommand(cmd) {
+  const unsupported = [];
+  const STATIC_ALLOWED_FLAGS = Object.fromEntries(
+    MAPPINGS.map((m) => [m.unix, new Set(Object.keys(m.flagMap))])
+  );
+  const DYNAMIC_ALLOWED_FLAGS = {
+    uniq: /* @__PURE__ */ new Set(["-c"]),
+    sort: /* @__PURE__ */ new Set(["-n"]),
+    cut: /* @__PURE__ */ new Set(["-d", "-f"]),
+    tr: /* @__PURE__ */ new Set([]),
+    find: /* @__PURE__ */ new Set(["-name", "-type", "-delete", "-exec"]),
+    xargs: /* @__PURE__ */ new Set(["-0"]),
+    sed: /* @__PURE__ */ new Set(["-n"])
+  };
+  const connectorParts = splitByConnectors(cmd).filter((p) => p !== "&&" && p !== "||");
+  for (const part of connectorParts) {
+    const pipeParts = splitByPipe(part);
+    for (const seg of pipeParts) {
+      const trimmed = seg.trim();
+      if (!trimmed) continue;
+      if (trimmed.startsWith("(") || trimmed.startsWith("{")) continue;
+      const tokens = tagTokenRoles(tokenizeWithPos(trimmed));
+      const cmdTok = tokens.find((t) => t.role === "cmd");
+      if (!cmdTok) continue;
+      const c = cmdTok.value;
+      if (!SUPPORTED_COMMANDS.has(c)) {
+        unsupported.push(`${trimmed} (unknown command)`);
+        continue;
+      }
+      const allowedFlags = STATIC_ALLOWED_FLAGS[c] ?? DYNAMIC_ALLOWED_FLAGS[c];
+      if (allowedFlags) {
+        const flagToks = tokens.filter((t) => t.role === "flag");
+        for (const fTok of flagToks) {
+          if (!allowedFlags.has(fTok.value)) {
+            unsupported.push(`${trimmed} (unsupported flag: ${fTok.value})`);
+            break;
+          }
+        }
+      }
+    }
+  }
+  return { unsupported };
+}
 function debugLog(...args) {
   if (DEBUG) {
     console.log("[smartsh/sm debug]", ...args);
@@ -801,15 +877,91 @@ function translateForLegacyPowerShell(command) {
   }
   return script;
 }
+var DYNAMIC_CMDS, SUPPORTED_COMMANDS, _a, OVERRIDE_SHELL, DEBUG;
+var init_translate = __esm({
+  "src/translate.ts"() {
+    "use strict";
+    init_unixMappings();
+    init_tokenize();
+    init_unixMappings();
+    DYNAMIC_CMDS = [
+      "head",
+      "tail",
+      "wc",
+      "sleep",
+      "whoami",
+      "sed",
+      "awk",
+      "cut",
+      "tr",
+      "uniq",
+      "sort",
+      "find",
+      "xargs",
+      "echo"
+    ];
+    SUPPORTED_COMMANDS = /* @__PURE__ */ new Set([...MAPPINGS.map((m) => m.unix), ...DYNAMIC_CMDS]);
+    OVERRIDE_SHELL = (_a = process.env.SMARTSH_SHELL) == null ? void 0 : _a.toLowerCase();
+    DEBUG = process.env.SMARTSH_DEBUG === "1" || process.env.SMARTSH_DEBUG === "true";
+  }
+});
 
 // src/cli.ts
+init_translate();
+var import_node_child_process = require("child_process");
+
+// src/config.ts
+var import_node_fs = __toESM(require("fs"));
 var import_node_path = __toESM(require("path"));
-var import_child_process = require("child_process");
-var TOOL_NAME = import_node_path.default.basename(process.argv[1] ?? "smartsh");
+var import_node_os = __toESM(require("os"));
+init_unixMappings();
+function readJson(filePath) {
+  try {
+    const txt = import_node_fs.default.readFileSync(filePath, "utf8");
+    return JSON.parse(txt);
+  } catch {
+    return null;
+  }
+}
+function initConfig() {
+  const home = import_node_os.default.homedir();
+  const candidates = [
+    import_node_path.default.join(home, ".smartshrc"),
+    import_node_path.default.join(home, ".smartshrc.json"),
+    import_node_path.default.join(home, ".smartshrc.js"),
+    import_node_path.default.join(home, ".smartshrc.cjs")
+  ];
+  let cfg = null;
+  for (const p of candidates) {
+    if (import_node_fs.default.existsSync(p)) {
+      if (p.endsWith(".js") || p.endsWith(".cjs")) {
+        try {
+          const mod = require(p);
+          if (typeof mod === "function") {
+            cfg = mod({ addExtraMappings });
+          } else {
+            cfg = mod;
+          }
+        } catch {
+          cfg = null;
+        }
+      } else {
+        cfg = readJson(p);
+      }
+      if (cfg) break;
+    }
+  }
+  if ((cfg == null ? void 0 : cfg.mappings) && Array.isArray(cfg.mappings)) {
+    addExtraMappings(cfg.mappings);
+  }
+}
+
+// src/cli.ts
+var TOOL_NAME = "smartsh";
 function runInShell(shellInfo, command) {
   if (shellInfo.type === "powershell") {
     const exe = shellInfo.version && shellInfo.version >= 7 ? "pwsh" : "powershell";
-    const child2 = (0, import_child_process.spawn)(exe, ["-NoProfile", "-Command", command], {
+    const child2 = (0, import_node_child_process.spawn)(exe, ["-NoProfile", "-Command", command], {
       stdio: "inherit"
     });
     child2.on("error", (err) => {
@@ -825,7 +977,7 @@ function runInShell(shellInfo, command) {
   if (shellInfo.type === "cmd") {
     shellOption = "cmd.exe";
   }
-  const child = (0, import_child_process.spawn)(command, {
+  const child = (0, import_node_child_process.spawn)(command, {
     shell: shellOption,
     stdio: "inherit"
   });
@@ -838,21 +990,46 @@ function runInShell(shellInfo, command) {
   });
 }
 function main() {
+  initConfig();
   const rawArgs = process.argv.slice(2);
   let translateOnly = false;
   const cmdParts = [];
   let i = 0;
+  let lintOnly = false;
+  let completionShell = null;
   for (; i < rawArgs.length; i++) {
     const arg = rawArgs[i];
     if (arg === "--translate-only" || arg === "-t") {
       translateOnly = true;
       continue;
     }
+    if (arg === "--lint" || arg === "-l") {
+      lintOnly = true;
+      continue;
+    }
     if (arg === "--debug" || arg === "-d") {
       process.env.SMARTSH_DEBUG = "1";
       continue;
     }
+    if (arg.startsWith("--completion")) {
+      if (arg.includes("=")) {
+        completionShell = arg.split("=")[1];
+      } else if (i + 1 < rawArgs.length) {
+        completionShell = rawArgs[i + 1];
+        i++;
+      }
+      continue;
+    }
     cmdParts.push(arg);
+  }
+  if (completionShell) {
+    const script = generateCompletionScript(completionShell);
+    if (!script) {
+      console.error(`${TOOL_NAME}: Unknown shell '${completionShell}'. Supported shells: bash, zsh, powershell`);
+      process.exit(1);
+    }
+    console.log(script);
+    process.exit(0);
   }
   if (cmdParts.length === 0) {
     console.error(
@@ -862,12 +1039,76 @@ function main() {
   }
   const originalCommand = cmdParts.join(" ");
   const shellInfo = detectShell();
+  if (lintOnly) {
+    const { lintCommand: lintCommand2 } = (init_translate(), __toCommonJS(translate_exports));
+    const res = lintCommand2(originalCommand);
+    if (res.unsupported.length === 0) {
+      console.log("\u2714 All segments are supported.");
+      process.exit(0);
+    }
+    console.error("\u2716 Unsupported segments detected:");
+    for (const seg of res.unsupported) {
+      console.error("  -", seg);
+    }
+    process.exit(1);
+  }
   const commandToRun = translateCommand(originalCommand, shellInfo);
   if (translateOnly) {
     console.log(commandToRun);
     return;
   }
   runInShell(shellInfo, commandToRun);
+}
+function generateCompletionScript(shell) {
+  const flags = [
+    "--translate-only",
+    "-t",
+    "--lint",
+    "-l",
+    "--debug",
+    "-d",
+    "--completion"
+  ];
+  switch (shell) {
+    case "bash":
+      return `# bash completion for smartsh
+_smartsh_complete() {
+  local cur="\${COMP_WORDS[COMP_CWORD]}"
+  local opts="${flags.join(" ")}"
+  COMPREPLY=( $(compgen -W "$opts" -- $cur) )
+  return 0
+}
+complete -F _smartsh_complete smartsh sm`;
+    case "zsh":
+      return `#compdef smartsh sm
+_arguments '*::options:->options'
+case $state in
+  options)
+    local opts=(
+      '--translate-only[Translate but do not execute]'
+      '-t[Translate but do not execute]'
+      '--lint[Lint command for unsupported segments]'
+      '-l[Lint command]'
+      '--debug[Enable debug output]'
+      '-d[Enable debug output]'
+      '--completion=[Generate completion script]:shell:(bash zsh powershell)'
+    )
+    _describe 'options' opts
+  ;;
+esac`;
+    case "powershell":
+    case "pwsh":
+      return `# PowerShell completion for smartsh
+Register-ArgumentCompleter -CommandName smartsh, sm -ScriptBlock {
+    param($wordToComplete, $commandAst, $cursorPosition)
+    $opts = ${flags.map((f) => `'${f}'`).join(", ")}
+    $opts | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+        [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterName', $_)
+    }
+}`;
+    default:
+      return null;
+  }
 }
 if (require.main === module) {
   main();
