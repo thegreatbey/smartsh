@@ -429,7 +429,7 @@ export function translateSingleUnixSegment(segment: string): string {
       .filter((t) => {
         if (t.role === "flag") return false;
         if (t.value === String(count)) return false;
-        return true;
+      return true;
       })
       .map((t) => t.value);
 
