@@ -765,7 +765,8 @@ var NSLOOKUP_MAPPING = {
   ps: "Resolve-DnsName",
   flagMap: {
     "-type": "-Type",
-    "-port": "-Port"
+    "-port": "-Port",
+    "-server": "-Server"
   },
   forceArgs: true
 };
@@ -1107,6 +1108,272 @@ var SUDO_MAPPING = {
   },
   forceArgs: true
 };
+var TRACEROUTE_MAPPING = {
+  unix: "traceroute",
+  ps: "Test-NetConnection -TraceRoute",
+  flagMap: {
+    "maxhops": "-MaxHops",
+    "timeout": "-Timeout",
+    "resolve": "-Resolve"
+  },
+  forceArgs: true
+};
+var IFCONFIG_MAPPING = {
+  unix: "ifconfig",
+  ps: "Get-NetAdapter | Select-Object Name, InterfaceDescription, Status, LinkSpeed",
+  flagMap: {
+    "all": "-All",
+    "up": "-Status Up",
+    "down": "-Status Down"
+  },
+  forceArgs: false
+};
+var PKILL_MAPPING = {
+  unix: "pkill",
+  ps: "Get-Process | Where-Object {$_.ProcessName -like",
+  flagMap: {
+    "signal": "-Signal",
+    "exact": "-Exact",
+    "full": "-Full"
+  },
+  forceArgs: true
+};
+var PGREP_MAPPING = {
+  unix: "pgrep",
+  ps: "Get-Process | Where-Object {$_.ProcessName -like",
+  flagMap: {
+    "list": "-List",
+    "full": "-Full",
+    "exact": "-Exact"
+  },
+  forceArgs: true
+};
+var KILLALL_MAPPING = {
+  unix: "killall",
+  ps: "Get-Process | Where-Object {$_.ProcessName -eq",
+  flagMap: {
+    "signal": "-Signal",
+    "exact": "-Exact",
+    "interactive": "-Interactive"
+  },
+  forceArgs: true
+};
+var RENICE_MAPPING = {
+  unix: "renice",
+  ps: "Set-ProcessPriority",
+  flagMap: {
+    "priority": "-Priority",
+    "pid": "-Id"
+  },
+  forceArgs: true
+};
+var MOUNT_MAPPING = {
+  unix: "mount",
+  ps: "Get-PSDrive | Where-Object {$_.Provider -like '*FileSystem*'} | Select-Object Name, Root, Used, Free",
+  flagMap: {
+    "all": "-All",
+    "type": "-Type",
+    "options": "-Options"
+  },
+  forceArgs: false
+};
+var UMOUNT_MAPPING = {
+  unix: "umount",
+  ps: "Remove-PSDrive",
+  flagMap: {
+    "force": "-Force",
+    "all": "-All"
+  },
+  forceArgs: true
+};
+var IOSTAT_MAPPING = {
+  unix: "iostat",
+  ps: "Get-Counter '\\PhysicalDisk(*)\\% Disk Time' | Select-Object -ExpandProperty CounterSamples | Format-Table InstanceName, CookedValue -AutoSize",
+  flagMap: {
+    "interval": "-Interval",
+    "count": "-Count",
+    "all": "-All"
+  },
+  forceArgs: false
+};
+var VMSTAT_MAPPING = {
+  unix: "vmstat",
+  ps: "Get-Counter '\\Memory\\*' | Select-Object -ExpandProperty CounterSamples | Format-Table InstanceName, CookedValue -AutoSize",
+  flagMap: {
+    "interval": "-Interval",
+    "count": "-Count",
+    "all": "-All"
+  },
+  forceArgs: false
+};
+var SAR_MAPPING = {
+  unix: "sar",
+  ps: "Get-Counter '\\Processor(_Total)\\% Processor Time' | Select-Object -ExpandProperty CounterSamples | Format-Table InstanceName, CookedValue, Timestamp -AutoSize",
+  flagMap: {
+    "interval": "-Interval",
+    "count": "-Count",
+    "all": "-All"
+  },
+  forceArgs: false
+};
+var PIP_MAPPING = {
+  unix: "pip",
+  ps: "python -m pip",
+  flagMap: {
+    "install": "install",
+    "uninstall": "uninstall",
+    "list": "list",
+    "show": "show",
+    "search": "search",
+    "upgrade": "upgrade"
+  },
+  forceArgs: false
+};
+var NPM_MAPPING = {
+  unix: "npm",
+  ps: "npm",
+  flagMap: {
+    "install": "install",
+    "uninstall": "uninstall",
+    "list": "list",
+    "search": "search",
+    "update": "update",
+    "run": "run"
+  },
+  forceArgs: false
+};
+var YARN_MAPPING = {
+  unix: "yarn",
+  ps: "yarn",
+  flagMap: {
+    "add": "add",
+    "remove": "remove",
+    "list": "list",
+    "search": "search",
+    "upgrade": "upgrade",
+    "run": "run"
+  },
+  forceArgs: false
+};
+var CARGO_MAPPING = {
+  unix: "cargo",
+  ps: "cargo",
+  flagMap: {
+    "build": "build",
+    "run": "run",
+    "test": "test",
+    "check": "check",
+    "clean": "clean",
+    "update": "update"
+  },
+  forceArgs: false
+};
+var CMAKE_MAPPING = {
+  unix: "cmake",
+  ps: "cmake",
+  flagMap: {
+    "build": "--build",
+    "configure": "--configure",
+    "install": "--install",
+    "test": "--test"
+  },
+  forceArgs: false
+};
+var ROUTE_MAPPING = {
+  unix: "route",
+  ps: "Get-NetRoute",
+  flagMap: {
+    "add": "Add-NetRoute",
+    "delete": "Remove-NetRoute",
+    "show": "Get-NetRoute",
+    "flush": "Remove-NetRoute -Confirm:$false"
+  },
+  forceArgs: false
+};
+var IWCONFIG_MAPPING = {
+  unix: "iwconfig",
+  ps: "Get-NetAdapter | Where-Object {$_.InterfaceDescription -like '*Wireless*'} | Select-Object Name, InterfaceDescription, Status, LinkSpeed",
+  flagMap: {
+    "all": "-All",
+    "up": "-Status Up",
+    "down": "-Status Down"
+  },
+  forceArgs: false
+};
+var IWSCAN_MAPPING = {
+  unix: "iwlist",
+  ps: "netsh wlan show networks",
+  flagMap: {
+    "scan": "show networks",
+    "essid": "show networks",
+    "channel": "show networks"
+  },
+  forceArgs: false
+};
+var ZIP_MAPPING = {
+  unix: "zip",
+  ps: "Compress-Archive",
+  flagMap: {
+    "r": "-Recurse",
+    "f": "-Force",
+    "u": "-Update",
+    "d": "-DestinationPath"
+  },
+  forceArgs: true
+};
+var UNZIP_MAPPING = {
+  unix: "unzip",
+  ps: "Expand-Archive",
+  flagMap: {
+    "l": "-ListOnly",
+    "o": "-Force",
+    "d": "-DestinationPath",
+    "q": "-Quiet"
+  },
+  forceArgs: true
+};
+var LSOF_MAPPING = {
+  unix: "lsof",
+  ps: "Get-Process | ForEach-Object { Get-NetTCPConnection | Where-Object {$_.OwningProcess -eq $_.Id} }",
+  flagMap: {
+    "i": "-LocalPort",
+    "p": "-Id",
+    "u": "-UserName",
+    "c": "-ProcessName"
+  },
+  forceArgs: false
+};
+var STrace_MAPPING = {
+  unix: "strace",
+  ps: "Start-Process -FilePath",
+  flagMap: {
+    "f": "-NoNewWindow",
+    "o": "-RedirectStandardOutput",
+    "e": "-RedirectStandardError"
+  },
+  forceArgs: true
+};
+var LOCATE_MAPPING = {
+  unix: "locate",
+  ps: "Get-ChildItem -Recurse -Filter",
+  flagMap: {
+    "i": "-CaseSensitive:$false",
+    "n": "-First",
+    "l": "-First",
+    "c": "-Count"
+  },
+  forceArgs: true
+};
+var UPDATEDB_MAPPING = {
+  unix: "updatedb",
+  ps: "Get-ChildItem -Recurse | ForEach-Object { $_.FullName } | Out-File -FilePath $env:TEMP\\locate.db -Encoding UTF8",
+  flagMap: {
+    "v": "-Verbose",
+    "o": "-OutputFile",
+    "U": "-Path"
+  },
+  forceArgs: false
+};
 var BASE_MAPPINGS = [
   RM_MAPPING,
   MKDIR_MAPPING,
@@ -1200,7 +1467,32 @@ var BASE_MAPPINGS = [
   USERDEL_MAPPING,
   PASSWD_MAPPING,
   SU_MAPPING,
-  SUDO_MAPPING
+  SUDO_MAPPING,
+  TRACEROUTE_MAPPING,
+  IFCONFIG_MAPPING,
+  PKILL_MAPPING,
+  PGREP_MAPPING,
+  KILLALL_MAPPING,
+  RENICE_MAPPING,
+  MOUNT_MAPPING,
+  UMOUNT_MAPPING,
+  IOSTAT_MAPPING,
+  VMSTAT_MAPPING,
+  SAR_MAPPING,
+  PIP_MAPPING,
+  NPM_MAPPING,
+  YARN_MAPPING,
+  CARGO_MAPPING,
+  CMAKE_MAPPING,
+  ROUTE_MAPPING,
+  IWCONFIG_MAPPING,
+  IWSCAN_MAPPING,
+  ZIP_MAPPING,
+  UNZIP_MAPPING,
+  LSOF_MAPPING,
+  STrace_MAPPING,
+  LOCATE_MAPPING,
+  UPDATEDB_MAPPING
 ];
 var EXTRA_MAPPINGS = [];
 var MAPPINGS = [...BASE_MAPPINGS, ...EXTRA_MAPPINGS];

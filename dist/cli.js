@@ -788,7 +788,7 @@ function translateSingleUnixSegment(segment) {
   const psCommand = `${mapping.ps}${psFlags}`.trim();
   return smartJoinEnhanced([psCommand, ...processedArgTokens]);
 }
-var RM_MAPPING, MKDIR_MAPPING, LS_MAPPING, CP_MAPPING, MV_MAPPING, TOUCH_MAPPING, GREP_MAPPING, CAT_MAPPING, WHICH_MAPPING, SORT_MAPPING, UNIQ_MAPPING, FIND_MAPPING, PWD_MAPPING, DATE_MAPPING, CLEAR_MAPPING, PS_MAPPING, KILL_MAPPING, DF_MAPPING, HOSTNAME_MAPPING, DIRNAME_MAPPING, BASENAME_MAPPING, TEE_MAPPING, TAR_MAPPING, CURL_MAPPING, WGET_MAPPING, DIFF_MAPPING, SPLIT_MAPPING, PASTE_MAPPING, RSYNC_MAPPING, CHMOD_MAPPING, CHOWN_MAPPING, LN_MAPPING, DU_MAPPING, SYSTEMCTL_MAPPING, LESS_MAPPING, MORE_MAPPING, PING_MAPPING, TOP_MAPPING, RMDIR_MAPPING, UPTIME_MAPPING, FREE_MAPPING, NETSTAT_MAPPING, SSH_MAPPING, GZIP_MAPPING, GUNZIP_MAPPING, JOBS_MAPPING, BG_MAPPING, FG_MAPPING, NICE_MAPPING, NOHUP_MAPPING, CHGRP_MAPPING, UMASK_MAPPING, MKTEMP_MAPPING, REALPATH_MAPPING, JOIN_MAPPING, COMM_MAPPING, EXPAND_MAPPING, UNEXPAND_MAPPING, FOLD_MAPPING, FMT_MAPPING, TELNET_MAPPING, NC_MAPPING, DIG_MAPPING, NSLOOKUP_MAPPING, MAKE_MAPPING, GCC_MAPPING, GPP_MAPPING, GIT_MAPPING, APT_MAPPING, APT_GET_MAPPING, YUM_MAPPING, DNF_MAPPING, BREW_MAPPING, UNAME_MAPPING, ID_MAPPING, GROUPS_MAPPING, WHO_MAPPING, W_MAPPING, REV_MAPPING, TAC_MAPPING, COLUMN_MAPPING, PR_MAPPING, CSPLIT_MAPPING, TSORT_MAPPING, SHUTDOWN_MAPPING, REBOOT_MAPPING, HALT_MAPPING, POWEROFF_MAPPING, USERADD_MAPPING, USERDEL_MAPPING, PASSWD_MAPPING, SU_MAPPING, SUDO_MAPPING, BASE_MAPPINGS, EXTRA_MAPPINGS, MAPPINGS, originalSmartJoin;
+var RM_MAPPING, MKDIR_MAPPING, LS_MAPPING, CP_MAPPING, MV_MAPPING, TOUCH_MAPPING, GREP_MAPPING, CAT_MAPPING, WHICH_MAPPING, SORT_MAPPING, UNIQ_MAPPING, FIND_MAPPING, PWD_MAPPING, DATE_MAPPING, CLEAR_MAPPING, PS_MAPPING, KILL_MAPPING, DF_MAPPING, HOSTNAME_MAPPING, DIRNAME_MAPPING, BASENAME_MAPPING, TEE_MAPPING, TAR_MAPPING, CURL_MAPPING, WGET_MAPPING, DIFF_MAPPING, SPLIT_MAPPING, PASTE_MAPPING, RSYNC_MAPPING, CHMOD_MAPPING, CHOWN_MAPPING, LN_MAPPING, DU_MAPPING, SYSTEMCTL_MAPPING, LESS_MAPPING, MORE_MAPPING, PING_MAPPING, TOP_MAPPING, RMDIR_MAPPING, UPTIME_MAPPING, FREE_MAPPING, NETSTAT_MAPPING, SSH_MAPPING, GZIP_MAPPING, GUNZIP_MAPPING, JOBS_MAPPING, BG_MAPPING, FG_MAPPING, NICE_MAPPING, NOHUP_MAPPING, CHGRP_MAPPING, UMASK_MAPPING, MKTEMP_MAPPING, REALPATH_MAPPING, JOIN_MAPPING, COMM_MAPPING, EXPAND_MAPPING, UNEXPAND_MAPPING, FOLD_MAPPING, FMT_MAPPING, TELNET_MAPPING, NC_MAPPING, DIG_MAPPING, NSLOOKUP_MAPPING, MAKE_MAPPING, GCC_MAPPING, GPP_MAPPING, GIT_MAPPING, APT_MAPPING, APT_GET_MAPPING, YUM_MAPPING, DNF_MAPPING, BREW_MAPPING, UNAME_MAPPING, ID_MAPPING, GROUPS_MAPPING, WHO_MAPPING, W_MAPPING, REV_MAPPING, TAC_MAPPING, COLUMN_MAPPING, PR_MAPPING, CSPLIT_MAPPING, TSORT_MAPPING, SHUTDOWN_MAPPING, REBOOT_MAPPING, HALT_MAPPING, POWEROFF_MAPPING, USERADD_MAPPING, USERDEL_MAPPING, PASSWD_MAPPING, SU_MAPPING, SUDO_MAPPING, TRACEROUTE_MAPPING, IFCONFIG_MAPPING, PKILL_MAPPING, PGREP_MAPPING, KILLALL_MAPPING, RENICE_MAPPING, MOUNT_MAPPING, UMOUNT_MAPPING, IOSTAT_MAPPING, VMSTAT_MAPPING, SAR_MAPPING, PIP_MAPPING, NPM_MAPPING, YARN_MAPPING, CARGO_MAPPING, CMAKE_MAPPING, ROUTE_MAPPING, IWCONFIG_MAPPING, IWSCAN_MAPPING, ZIP_MAPPING, UNZIP_MAPPING, LSOF_MAPPING, STrace_MAPPING, LOCATE_MAPPING, UPDATEDB_MAPPING, BASE_MAPPINGS, EXTRA_MAPPINGS, MAPPINGS, originalSmartJoin;
 var init_unixMappings = __esm({
   "src/unixMappings.ts"() {
     "use strict";
@@ -1414,7 +1414,8 @@ var init_unixMappings = __esm({
       ps: "Resolve-DnsName",
       flagMap: {
         "-type": "-Type",
-        "-port": "-Port"
+        "-port": "-Port",
+        "-server": "-Server"
       },
       forceArgs: true
     };
@@ -1756,6 +1757,272 @@ var init_unixMappings = __esm({
       },
       forceArgs: true
     };
+    TRACEROUTE_MAPPING = {
+      unix: "traceroute",
+      ps: "Test-NetConnection -TraceRoute",
+      flagMap: {
+        "maxhops": "-MaxHops",
+        "timeout": "-Timeout",
+        "resolve": "-Resolve"
+      },
+      forceArgs: true
+    };
+    IFCONFIG_MAPPING = {
+      unix: "ifconfig",
+      ps: "Get-NetAdapter | Select-Object Name, InterfaceDescription, Status, LinkSpeed",
+      flagMap: {
+        "all": "-All",
+        "up": "-Status Up",
+        "down": "-Status Down"
+      },
+      forceArgs: false
+    };
+    PKILL_MAPPING = {
+      unix: "pkill",
+      ps: "Get-Process | Where-Object {$_.ProcessName -like",
+      flagMap: {
+        "signal": "-Signal",
+        "exact": "-Exact",
+        "full": "-Full"
+      },
+      forceArgs: true
+    };
+    PGREP_MAPPING = {
+      unix: "pgrep",
+      ps: "Get-Process | Where-Object {$_.ProcessName -like",
+      flagMap: {
+        "list": "-List",
+        "full": "-Full",
+        "exact": "-Exact"
+      },
+      forceArgs: true
+    };
+    KILLALL_MAPPING = {
+      unix: "killall",
+      ps: "Get-Process | Where-Object {$_.ProcessName -eq",
+      flagMap: {
+        "signal": "-Signal",
+        "exact": "-Exact",
+        "interactive": "-Interactive"
+      },
+      forceArgs: true
+    };
+    RENICE_MAPPING = {
+      unix: "renice",
+      ps: "Set-ProcessPriority",
+      flagMap: {
+        "priority": "-Priority",
+        "pid": "-Id"
+      },
+      forceArgs: true
+    };
+    MOUNT_MAPPING = {
+      unix: "mount",
+      ps: "Get-PSDrive | Where-Object {$_.Provider -like '*FileSystem*'} | Select-Object Name, Root, Used, Free",
+      flagMap: {
+        "all": "-All",
+        "type": "-Type",
+        "options": "-Options"
+      },
+      forceArgs: false
+    };
+    UMOUNT_MAPPING = {
+      unix: "umount",
+      ps: "Remove-PSDrive",
+      flagMap: {
+        "force": "-Force",
+        "all": "-All"
+      },
+      forceArgs: true
+    };
+    IOSTAT_MAPPING = {
+      unix: "iostat",
+      ps: "Get-Counter '\\PhysicalDisk(*)\\% Disk Time' | Select-Object -ExpandProperty CounterSamples | Format-Table InstanceName, CookedValue -AutoSize",
+      flagMap: {
+        "interval": "-Interval",
+        "count": "-Count",
+        "all": "-All"
+      },
+      forceArgs: false
+    };
+    VMSTAT_MAPPING = {
+      unix: "vmstat",
+      ps: "Get-Counter '\\Memory\\*' | Select-Object -ExpandProperty CounterSamples | Format-Table InstanceName, CookedValue -AutoSize",
+      flagMap: {
+        "interval": "-Interval",
+        "count": "-Count",
+        "all": "-All"
+      },
+      forceArgs: false
+    };
+    SAR_MAPPING = {
+      unix: "sar",
+      ps: "Get-Counter '\\Processor(_Total)\\% Processor Time' | Select-Object -ExpandProperty CounterSamples | Format-Table InstanceName, CookedValue, Timestamp -AutoSize",
+      flagMap: {
+        "interval": "-Interval",
+        "count": "-Count",
+        "all": "-All"
+      },
+      forceArgs: false
+    };
+    PIP_MAPPING = {
+      unix: "pip",
+      ps: "python -m pip",
+      flagMap: {
+        "install": "install",
+        "uninstall": "uninstall",
+        "list": "list",
+        "show": "show",
+        "search": "search",
+        "upgrade": "upgrade"
+      },
+      forceArgs: false
+    };
+    NPM_MAPPING = {
+      unix: "npm",
+      ps: "npm",
+      flagMap: {
+        "install": "install",
+        "uninstall": "uninstall",
+        "list": "list",
+        "search": "search",
+        "update": "update",
+        "run": "run"
+      },
+      forceArgs: false
+    };
+    YARN_MAPPING = {
+      unix: "yarn",
+      ps: "yarn",
+      flagMap: {
+        "add": "add",
+        "remove": "remove",
+        "list": "list",
+        "search": "search",
+        "upgrade": "upgrade",
+        "run": "run"
+      },
+      forceArgs: false
+    };
+    CARGO_MAPPING = {
+      unix: "cargo",
+      ps: "cargo",
+      flagMap: {
+        "build": "build",
+        "run": "run",
+        "test": "test",
+        "check": "check",
+        "clean": "clean",
+        "update": "update"
+      },
+      forceArgs: false
+    };
+    CMAKE_MAPPING = {
+      unix: "cmake",
+      ps: "cmake",
+      flagMap: {
+        "build": "--build",
+        "configure": "--configure",
+        "install": "--install",
+        "test": "--test"
+      },
+      forceArgs: false
+    };
+    ROUTE_MAPPING = {
+      unix: "route",
+      ps: "Get-NetRoute",
+      flagMap: {
+        "add": "Add-NetRoute",
+        "delete": "Remove-NetRoute",
+        "show": "Get-NetRoute",
+        "flush": "Remove-NetRoute -Confirm:$false"
+      },
+      forceArgs: false
+    };
+    IWCONFIG_MAPPING = {
+      unix: "iwconfig",
+      ps: "Get-NetAdapter | Where-Object {$_.InterfaceDescription -like '*Wireless*'} | Select-Object Name, InterfaceDescription, Status, LinkSpeed",
+      flagMap: {
+        "all": "-All",
+        "up": "-Status Up",
+        "down": "-Status Down"
+      },
+      forceArgs: false
+    };
+    IWSCAN_MAPPING = {
+      unix: "iwlist",
+      ps: "netsh wlan show networks",
+      flagMap: {
+        "scan": "show networks",
+        "essid": "show networks",
+        "channel": "show networks"
+      },
+      forceArgs: false
+    };
+    ZIP_MAPPING = {
+      unix: "zip",
+      ps: "Compress-Archive",
+      flagMap: {
+        "r": "-Recurse",
+        "f": "-Force",
+        "u": "-Update",
+        "d": "-DestinationPath"
+      },
+      forceArgs: true
+    };
+    UNZIP_MAPPING = {
+      unix: "unzip",
+      ps: "Expand-Archive",
+      flagMap: {
+        "l": "-ListOnly",
+        "o": "-Force",
+        "d": "-DestinationPath",
+        "q": "-Quiet"
+      },
+      forceArgs: true
+    };
+    LSOF_MAPPING = {
+      unix: "lsof",
+      ps: "Get-Process | ForEach-Object { Get-NetTCPConnection | Where-Object {$_.OwningProcess -eq $_.Id} }",
+      flagMap: {
+        "i": "-LocalPort",
+        "p": "-Id",
+        "u": "-UserName",
+        "c": "-ProcessName"
+      },
+      forceArgs: false
+    };
+    STrace_MAPPING = {
+      unix: "strace",
+      ps: "Start-Process -FilePath",
+      flagMap: {
+        "f": "-NoNewWindow",
+        "o": "-RedirectStandardOutput",
+        "e": "-RedirectStandardError"
+      },
+      forceArgs: true
+    };
+    LOCATE_MAPPING = {
+      unix: "locate",
+      ps: "Get-ChildItem -Recurse -Filter",
+      flagMap: {
+        "i": "-CaseSensitive:$false",
+        "n": "-First",
+        "l": "-First",
+        "c": "-Count"
+      },
+      forceArgs: true
+    };
+    UPDATEDB_MAPPING = {
+      unix: "updatedb",
+      ps: "Get-ChildItem -Recurse | ForEach-Object { $_.FullName } | Out-File -FilePath $env:TEMP\\locate.db -Encoding UTF8",
+      flagMap: {
+        "v": "-Verbose",
+        "o": "-OutputFile",
+        "U": "-Path"
+      },
+      forceArgs: false
+    };
     BASE_MAPPINGS = [
       RM_MAPPING,
       MKDIR_MAPPING,
@@ -1849,7 +2116,32 @@ var init_unixMappings = __esm({
       USERDEL_MAPPING,
       PASSWD_MAPPING,
       SU_MAPPING,
-      SUDO_MAPPING
+      SUDO_MAPPING,
+      TRACEROUTE_MAPPING,
+      IFCONFIG_MAPPING,
+      PKILL_MAPPING,
+      PGREP_MAPPING,
+      KILLALL_MAPPING,
+      RENICE_MAPPING,
+      MOUNT_MAPPING,
+      UMOUNT_MAPPING,
+      IOSTAT_MAPPING,
+      VMSTAT_MAPPING,
+      SAR_MAPPING,
+      PIP_MAPPING,
+      NPM_MAPPING,
+      YARN_MAPPING,
+      CARGO_MAPPING,
+      CMAKE_MAPPING,
+      ROUTE_MAPPING,
+      IWCONFIG_MAPPING,
+      IWSCAN_MAPPING,
+      ZIP_MAPPING,
+      UNZIP_MAPPING,
+      LSOF_MAPPING,
+      STrace_MAPPING,
+      LOCATE_MAPPING,
+      UPDATEDB_MAPPING
     ];
     EXTRA_MAPPINGS = [];
     MAPPINGS = [...BASE_MAPPINGS, ...EXTRA_MAPPINGS];

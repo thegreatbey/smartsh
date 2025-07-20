@@ -1,6 +1,6 @@
 {
   "name": "smartsh",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "main": "dist/index.js",
   "description": "Cross-shell command runner enabling Unix-style syntax on any OS.",
   "bin": {
