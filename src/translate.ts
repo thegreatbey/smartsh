@@ -1,3 +1,4 @@
+console.log('src/translate.ts LOADED');
 import { translateSingleUnixSegment } from "./unixMappings";
 import { tokenizeWithPos, tagTokenRoles } from "./tokenize";
 
@@ -20,13 +21,15 @@ const DYNAMIC_CMDS = [
   "sort",
   "find",
   "xargs",
-  "echo"
+  "echo",
+  "nl"
 ];
 
 const SUPPORTED_COMMANDS = new Set<string>([...MAPPINGS.map((m) => m.unix), ...DYNAMIC_CMDS]);
 
-export function lintCommand(cmd: string): { unsupported: string[] } {
+export function lintCommand(cmd: string): { unsupported: string[]; suggestions: string[] } {
   const unsupported: string[] = [];
+  const suggestions: string[] = [];
 
   // Pre-compute allowed flag sets for static mappings
   const STATIC_ALLOWED_FLAGS: Record<string, Set<string>> = Object.fromEntries(
@@ -60,7 +63,13 @@ export function lintCommand(cmd: string): { unsupported: string[] } {
 
       // 1. Unknown command
       if (!SUPPORTED_COMMANDS.has(c)) {
-        unsupported.push(`${trimmed} (unknown command)`);
+        unsupported.push(`${trimmed} (unknown command: '${c}')`);
+        
+        // Provide suggestions for common typos
+        const cmdSuggestions = getCommandSuggestions(c);
+        if (cmdSuggestions.length > 0) {
+          suggestions.push(`  Did you mean: ${cmdSuggestions.join(", ")}?`);
+        }
         continue;
       }
 
@@ -70,7 +79,13 @@ export function lintCommand(cmd: string): { unsupported: string[] } {
         const flagToks = tokens.filter((t) => t.role === "flag");
         for (const fTok of flagToks) {
           if (!allowedFlags.has(fTok.value)) {
-            unsupported.push(`${trimmed} (unsupported flag: ${fTok.value})`);
+            unsupported.push(`${trimmed} (unsupported flag: '${fTok.value}' for '${c}')`);
+            
+            // Provide flag suggestions
+            const flagSuggestions = getFlagSuggestions(c, fTok.value, allowedFlags);
+            if (flagSuggestions.length > 0) {
+              suggestions.push(`  Available flags for '${c}': ${Array.from(allowedFlags).join(", ")}`);
+            }
             break; // Only report once per segment
           }
         }
@@ -78,7 +93,40 @@ export function lintCommand(cmd: string): { unsupported: string[] } {
     }
   }
 
-  return { unsupported };
+  return { unsupported, suggestions };
+}
+
+function getCommandSuggestions(unknownCmd: string): string[] {
+  const allCommands = [...MAPPINGS.map((m) => m.unix), ...DYNAMIC_CMDS];
+  const suggestions: string[] = [];
+  
+  // Simple Levenshtein-like matching for common typos
+  for (const cmd of allCommands) {
+    if (cmd.length >= 3 && (
+      cmd.includes(unknownCmd) || 
+      unknownCmd.includes(cmd) ||
+      Math.abs(cmd.length - unknownCmd.length) <= 2
+    )) {
+      suggestions.push(cmd);
+      if (suggestions.length >= 3) break; // Limit to 3 suggestions
+    }
+  }
+  
+  return suggestions;
+}
+
+function getFlagSuggestions(cmd: string, unknownFlag: string, allowedFlags: Set<string>): string[] {
+  const suggestions: string[] = [];
+  
+  // Look for similar flags
+  for (const flag of Array.from(allowedFlags)) {
+    if (flag.includes(unknownFlag) || unknownFlag.includes(flag)) {
+      suggestions.push(flag);
+      if (suggestions.length >= 3) break;
+    }
+  }
+  
+  return suggestions;
 }
 
 export type ShellType = "bash" | "powershell" | "cmd";
@@ -112,7 +160,9 @@ function debugLog(...args: unknown[]) {
  */
 function getPowerShellVersionSync(): number | null {
   const { execSync } = require("child_process");
-  const candidates = ["pwsh", "powershell"];
+  
+  // Be conservative: check traditional powershell first (most common)
+  const candidates = ["powershell", "pwsh"];
   for (const cmd of candidates) {
     try {
       const output: string = execSync(
@@ -229,15 +279,26 @@ export function translateCommand(command: string, shell: ShellInfo): string {
     });
     const unixTranslated = parts.join(" ");
 
+    // Handle backtick-escaped operators for PowerShell compatibility
+    const finalResult = handleBacktickEscapedOperators(unixTranslated);
+
     if (shell.supportsConditionalConnectors) {
-      return unixTranslated;
+      return finalResult;
     }
 
-    return translateForLegacyPowerShell(unixTranslated);
+    return translateForLegacyPowerShell(finalResult);
   }
 
   // Non-PowerShell shells: just return original
   return command;
+}
+
+// Handle PowerShell backtick-escaped operators by converting them to quoted versions
+function handleBacktickEscapedOperators(cmd: string): string {
+  // Convert `&`& to '&&' and `|`| to '||' for PowerShell compatibility
+  return cmd
+    .replace(/`&`&/g, "'&&'")
+    .replace(/`\|`\|/g, "'||'");
 }
 
 // Modify splitByConnectors to handle backslash-escaped quotes inside quoted strings.
@@ -326,4 +387,14 @@ function translateForLegacyPowerShell(command: string): string {
 }
 
 // Re-export for unit tests only (not part of public API)
-export { splitByConnectors as __test_splitByConnectors }; 
+export { splitByConnectors as __test_splitByConnectors };
+
+/**
+ * Quote backtick-escaped operators for PowerShell compatibility
+ */
+function quoteBacktickEscapedOperators(segment: string): string {
+  // Replace backtick-escaped && and || with quoted versions
+  return segment
+    .replace(/\`&\`&/g, "'&&'")
+    .replace(/\`\|\`\|/g, "'||'");
+} 

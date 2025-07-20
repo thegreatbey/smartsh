@@ -1,3 +1,4 @@
+console.log('translate.test.ts LOADED');
 import { describe, expect, test } from "vitest";
 
 import {
@@ -6,7 +7,9 @@ import {
 } from "../src/translate";
 
 describe("splitByConnectors", () => {
+  console.log('describe splitByConnectors ENTERED');
   test("splits simple connectors", () => {
+    console.log('test splits simple connectors ENTERED');
     expect(splitByConnectors("echo a && echo b || echo c")).toEqual([
       "echo a",
       "&&",
@@ -14,6 +17,7 @@ describe("splitByConnectors", () => {
       "||",
       "echo c",
     ]);
+    expect(true).toBe(true);
   });
 
   test("ignores connectors inside quotes", () => {

@@ -1,0 +1,82 @@
+{
+  "name": "smartsh",
+  "displayName": "Smartsh - Unix to PowerShell Translator",
+  "description": "Translate Unix commands to PowerShell in real-time",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:smartsh.translateCommand",
+    "onLanguage:shellscript",
+    "onLanguage:powershell"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "smartsh.translateCommand",
+        "title": "Smartsh: Translate Unix Command",
+        "category": "Smartsh"
+      },
+      {
+        "command": "smartsh.translateSelection",
+        "title": "Smartsh: Translate Selected Text",
+        "category": "Smartsh"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "smartsh.translateCommand"
+        },
+        {
+          "command": "smartsh.translateSelection"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "smartsh.translateSelection",
+          "when": "editorHasSelection"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Smartsh",
+      "properties": {
+        "smartsh.enableLivePreview": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable live translation preview"
+        },
+        "smartsh.showStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show current shell type in status bar"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "16.x",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "smartsh": "file:../"
+  }
+} 

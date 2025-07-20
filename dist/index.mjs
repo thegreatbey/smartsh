@@ -1,44 +1,157 @@
-import { tokenizeWithPos, tagTokenRoles } from "./tokenize";
+#!/usr/bin/env node
+var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
+  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
+}) : x)(function(x) {
+  if (typeof require !== "undefined") return require.apply(this, arguments);
+  throw Error('Dynamic require of "' + x + '" is not supported');
+});
 
-export interface CommandMapping {
-  unix: string;
-  ps: string;
-  flagMap: Record<string, string>; // maps a unix flag (or combo) to ps flags
-  forceArgs?: boolean; // if true command requires at least one argument
+// src/tokenize.ts
+function tokenizeWithPos(cmd) {
+  const tokens = [];
+  let i = 0;
+  while (i < cmd.length) {
+    while (i < cmd.length && /\s/.test(cmd[i])) {
+      i++;
+    }
+    if (i >= cmd.length) break;
+    const start = i;
+    let value = "";
+    let quoteType = void 0;
+    if (cmd[i] === "'" || cmd[i] === '"') {
+      quoteType = cmd[i];
+      const quoteChar = cmd[i];
+      value = cmd[i];
+      i++;
+      while (i < cmd.length && cmd[i] !== quoteChar) {
+        value += cmd[i];
+        i++;
+      }
+      if (i < cmd.length) {
+        value += cmd[i];
+        i++;
+      }
+    } else if (cmd[i] === "\\" && i + 1 < cmd.length && isOperatorStart(cmd[i + 1])) {
+      value = cmd[i] + cmd[i + 1];
+      i += 2;
+    } else if (cmd[i] === "`" && i + 1 < cmd.length && isOperatorStart(cmd[i + 1])) {
+      if (cmd[i + 1] === "&" && i + 2 < cmd.length && cmd[i + 2] === "`" && i + 3 < cmd.length && cmd[i + 3] === "&") {
+        value = cmd[i] + cmd[i + 1] + cmd[i + 2] + cmd[i + 3];
+        i += 4;
+      } else if (cmd[i + 1] === "|" && i + 2 < cmd.length && cmd[i + 2] === "`" && i + 3 < cmd.length && cmd[i + 3] === "|") {
+        value = cmd[i] + cmd[i + 1] + cmd[i + 2] + cmd[i + 3];
+        i += 4;
+      } else {
+        value = cmd[i] + cmd[i + 1];
+        i += 2;
+      }
+    } else if (isOperator(cmd, i)) {
+      const op = extractOperator(cmd, i);
+      value = op;
+      i += op.length;
+    } else {
+      while (i < cmd.length && !/\s/.test(cmd[i]) && !isOperatorStart(cmd[i])) {
+        value += cmd[i];
+        i++;
+      }
+    }
+    if (i === start) {
+      value = cmd[i];
+      i++;
+    }
+    if (value) {
+      tokens.push({
+        value,
+        start,
+        end: i,
+        quoteType
+      });
+    }
+  }
+  return tokens;
+}
+function isOperatorStart(char) {
+  return ["<", ">", "|", "&", ";", "(", ")", "{", "}"].includes(char);
+}
+function isOperator(cmd, pos) {
+  const operators = ["&&", "||", "|&", "<<", ">>", "|", ";", "<", ">", "(", ")", "{", "}"];
+  for (const op of operators) {
+    if (cmd.substring(pos, pos + op.length) === op) {
+      return true;
+    }
+  }
+  return false;
+}
+function extractOperator(cmd, pos) {
+  const operators = ["&&", "||", "|&", "<<", ">>", "|", ";", "<", ">", "(", ")", "{", "}"];
+  for (const op of operators) {
+    if (cmd.substring(pos, pos + op.length) === op) {
+      return op;
+    }
+  }
+  return cmd[pos];
+}
+var OPS = /* @__PURE__ */ new Set(["&&", "||", "|", ";", "|&"]);
+function isRedirectionToken(val) {
+  return /^(\d*>>?&?\d*|[<>]{1,2}|&>?)$/.test(val);
+}
+function tagTokenRoles(tokens) {
+  const out = [];
+  let expectCmd = true;
+  for (const t of tokens) {
+    if (OPS.has(t.value)) {
+      out.push({ ...t, role: "op" });
+      expectCmd = true;
+      continue;
+    }
+    if (isRedirectionToken(t.value)) {
+      out.push({ ...t, role: "arg" });
+      continue;
+    }
+    if (expectCmd) {
+      out.push({ ...t, role: "cmd" });
+      expectCmd = false;
+      continue;
+    }
+    if (t.value.startsWith("-") && t.value.length > 1 && t.quoteType === void 0) {
+      out.push({ ...t, role: "flag" });
+    } else {
+      out.push({ ...t, role: "arg" });
+    }
+  }
+  return out;
 }
 
-const RM_MAPPING: CommandMapping = {
+// src/unixMappings.ts
+var RM_MAPPING = {
   unix: "rm",
   ps: "Remove-Item",
   flagMap: {
     "-rf": "-Recurse -Force",
     "-fr": "-Recurse -Force",
     "-r": "-Recurse",
-    "-f": "-Force",
+    "-f": "-Force"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const MKDIR_MAPPING: CommandMapping = {
+var MKDIR_MAPPING = {
   unix: "mkdir",
   ps: "New-Item -ItemType Directory",
   flagMap: {
-    "-p": "-Force",
-  },
+    "-p": "-Force"
+  }
 };
-
-const LS_MAPPING: CommandMapping = {
+var LS_MAPPING = {
   unix: "ls",
   ps: "Get-ChildItem",
   flagMap: {
     "-la": "-Force",
     "-al": "-Force",
     "-a": "-Force",
-    "-l": "",
-  },
+    "-l": ""
+  }
 };
-
-const CP_MAPPING: CommandMapping = {
+var CP_MAPPING = {
   unix: "cp",
   ps: "Copy-Item",
   flagMap: {
@@ -46,26 +159,23 @@ const CP_MAPPING: CommandMapping = {
     "-R": "-Recurse",
     "-f": "-Force",
     "-rf": "-Recurse -Force",
-    "-fr": "-Recurse -Force",
+    "-fr": "-Recurse -Force"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const MV_MAPPING: CommandMapping = {
+var MV_MAPPING = {
   unix: "mv",
   ps: "Move-Item",
   flagMap: {},
-  forceArgs: true,
+  forceArgs: true
 };
-
-const TOUCH_MAPPING: CommandMapping = {
+var TOUCH_MAPPING = {
   unix: "touch",
   ps: "New-Item -ItemType File",
   flagMap: {},
-  forceArgs: true,
+  forceArgs: true
 };
-
-const GREP_MAPPING: CommandMapping = {
+var GREP_MAPPING = {
   unix: "grep",
   ps: "Select-String",
   flagMap: {
@@ -81,129 +191,118 @@ const GREP_MAPPING: CommandMapping = {
     "-iq": "-CaseSensitive:$false -Quiet",
     "-qi": "-CaseSensitive:$false -Quiet",
     "-E": "",
-    "-F": "-SimpleMatch",
+    "-F": "-SimpleMatch"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const CAT_MAPPING: CommandMapping = {
+var CAT_MAPPING = {
   unix: "cat",
   ps: "Get-Content",
   flagMap: {},
-  forceArgs: true,
+  forceArgs: true
 };
-
-const WHICH_MAPPING: CommandMapping = {
+var WHICH_MAPPING = {
   unix: "which",
   ps: "Get-Command",
   flagMap: {},
-  forceArgs: true,
+  forceArgs: true
 };
-
-const SORT_MAPPING: CommandMapping = {
+var SORT_MAPPING = {
   unix: "sort",
   ps: "Sort-Object",
   flagMap: {},
-  forceArgs: false,
+  forceArgs: false
 };
-
-const UNIQ_MAPPING: CommandMapping = {
+var UNIQ_MAPPING = {
   unix: "uniq",
   ps: "Select-Object -Unique",
   flagMap: {},
-  forceArgs: false,
+  forceArgs: false
 };
-
-const FIND_MAPPING: CommandMapping = {
+var FIND_MAPPING = {
   unix: "find",
   ps: "Get-ChildItem -Recurse",
   flagMap: {
-    "-name": "-Filter", // maps -name pattern
-    "-type": "", // we ignore -type for now
-    "-delete": "", // handled specially in translation logic
+    "-name": "-Filter",
+    // maps -name pattern
+    "-type": "",
+    // we ignore -type for now
+    "-delete": ""
+    // handled specially in translation logic
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const PWD_MAPPING: CommandMapping = {
+var PWD_MAPPING = {
   unix: "pwd",
   ps: "Get-Location",
   flagMap: {},
-  forceArgs: false,
+  forceArgs: false
 };
-
-const DATE_MAPPING: CommandMapping = {
+var DATE_MAPPING = {
   unix: "date",
   ps: "Get-Date",
   flagMap: {},
-  forceArgs: false,
+  forceArgs: false
 };
-
-const CLEAR_MAPPING: CommandMapping = {
+var CLEAR_MAPPING = {
   unix: "clear",
   ps: "Clear-Host",
   flagMap: {},
-  forceArgs: false,
+  forceArgs: false
 };
-
-const PS_MAPPING: CommandMapping = {
+var PS_MAPPING = {
   unix: "ps",
   ps: "Get-Process",
   flagMap: {},
-  forceArgs: false,
+  forceArgs: false
 };
-
-const KILL_MAPPING: CommandMapping = {
+var KILL_MAPPING = {
   unix: "kill",
   ps: "Stop-Process",
   flagMap: {
-    "-9": "-Force",
+    "-9": "-Force"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const DF_MAPPING: CommandMapping = {
+var DF_MAPPING = {
   unix: "df",
   ps: "Get-PSDrive",
   flagMap: {
-    "-h": "", // human-readable not needed
+    "-h": ""
+    // human-readable not needed
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const HOSTNAME_MAPPING: CommandMapping = {
+var HOSTNAME_MAPPING = {
   unix: "hostname",
   ps: "$env:COMPUTERNAME",
   flagMap: {},
-  forceArgs: false,
+  forceArgs: false
 };
-
-const DIRNAME_MAPPING: CommandMapping = {
+var DIRNAME_MAPPING = {
   unix: "dirname",
   ps: "Split-Path -Parent",
   flagMap: {},
-  forceArgs: true,
+  forceArgs: true
 };
-
-const BASENAME_MAPPING: CommandMapping = {
+var BASENAME_MAPPING = {
   unix: "basename",
   ps: "Split-Path -Leaf",
   flagMap: {},
-  forceArgs: true,
+  forceArgs: true
 };
-
-const TEE_MAPPING: CommandMapping = {
+var TEE_MAPPING = {
   unix: "tee",
   ps: "Tee-Object -FilePath",
   flagMap: {
-    "-a": "-Append",
+    "-a": "-Append"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const TAR_MAPPING: CommandMapping = {
+var TAR_MAPPING = {
   unix: "tar",
-  ps: "tar", // Use native tar if available, otherwise preserve
+  ps: "tar",
+  // Use native tar if available, otherwise preserve
   flagMap: {
     "-c": "-c",
     "-x": "-x",
@@ -211,12 +310,11 @@ const TAR_MAPPING: CommandMapping = {
     "-z": "-z",
     "-j": "-j",
     "-v": "-v",
-    "-t": "-t",
+    "-t": "-t"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const CURL_MAPPING: CommandMapping = {
+var CURL_MAPPING = {
   unix: "curl",
   ps: "Invoke-WebRequest",
   flagMap: {
@@ -227,12 +325,11 @@ const CURL_MAPPING: CommandMapping = {
     "-H": "-Headers",
     "-d": "-Body",
     "-X": "-Method",
-    "-k": "-SkipCertificateCheck",
+    "-k": "-SkipCertificateCheck"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const WGET_MAPPING: CommandMapping = {
+var WGET_MAPPING = {
   unix: "wget",
   ps: "Invoke-WebRequest",
   flagMap: {
@@ -242,12 +339,11 @@ const WGET_MAPPING: CommandMapping = {
     "-c": "-Resume",
     "-r": "-Recurse",
     "-np": "-NoParent",
-    "-k": "-ConvertLinks",
+    "-k": "-ConvertLinks"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const DIFF_MAPPING: CommandMapping = {
+var DIFF_MAPPING = {
   unix: "diff",
   ps: "Compare-Object",
   flagMap: {
@@ -255,127 +351,138 @@ const DIFF_MAPPING: CommandMapping = {
     "-r": "-Recurse",
     "-i": "-CaseInsensitive",
     "-w": "-IgnoreWhiteSpace",
-    "-B": "-IgnoreBlankLines",
+    "-B": "-IgnoreBlankLines"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const SPLIT_MAPPING: CommandMapping = {
+var SPLIT_MAPPING = {
   unix: "split",
   ps: "Split-Content",
   flagMap: {
     "-l": "-LineCount",
     "-b": "-ByteCount",
-    "-n": "-Number",
+    "-n": "-Number"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const PASTE_MAPPING: CommandMapping = {
+var PASTE_MAPPING = {
   unix: "paste",
   ps: "Join-Object",
   flagMap: {
     "-d": "-Delimiter",
-    "-s": "-Serial",
+    "-s": "-Serial"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const RSYNC_MAPPING: CommandMapping = {
+var RSYNC_MAPPING = {
   unix: "rsync",
   ps: "Copy-Item",
   flagMap: {
-    "-a": "-Recurse", // archive mode (recursive + preserve attributes)
-    "-v": "-Verbose", // verbose
-    "-r": "-Recurse", // recursive
-    "-u": "-Force", // update (skip newer files)
-    "-n": "-WhatIf", // dry run
-    "-P": "-PassThru", // progress + partial
+    "-a": "-Recurse",
+    // archive mode (recursive + preserve attributes)
+    "-v": "-Verbose",
+    // verbose
+    "-r": "-Recurse",
+    // recursive
+    "-u": "-Force",
+    // update (skip newer files)
+    "-n": "-WhatIf",
+    // dry run
+    "-P": "-PassThru"
+    // progress + partial
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const CHMOD_MAPPING: CommandMapping = {
+var CHMOD_MAPPING = {
   unix: "chmod",
   ps: "icacls",
   flagMap: {
-    "-R": "/T", // recursive
-    "-v": "/Q", // verbose (quiet in icacls)
+    "-R": "/T",
+    // recursive
+    "-v": "/Q"
+    // verbose (quiet in icacls)
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const CHOWN_MAPPING: CommandMapping = {
+var CHOWN_MAPPING = {
   unix: "chown",
   ps: "icacls",
   flagMap: {
-    "-R": "/T", // recursive
-    "-v": "/Q", // verbose (quiet in icacls)
+    "-R": "/T",
+    // recursive
+    "-v": "/Q"
+    // verbose (quiet in icacls)
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const LN_MAPPING: CommandMapping = {
+var LN_MAPPING = {
   unix: "ln",
   ps: "New-Item",
   flagMap: {
-    "-s": "-ItemType SymbolicLink", // symbolic link
-    "-f": "-Force", // force
-    "-v": "-Verbose", // verbose
+    "-s": "-ItemType SymbolicLink",
+    // symbolic link
+    "-f": "-Force",
+    // force
+    "-v": "-Verbose"
+    // verbose
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const DU_MAPPING: CommandMapping = {
+var DU_MAPPING = {
   unix: "du",
   ps: "Get-ChildItem",
   flagMap: {
-    "-h": "-Recurse", // human readable (handled in translation)
-    "-s": "-Recurse", // summarize
-    "-a": "-Recurse", // all files
-    "-c": "-Recurse", // total
+    "-h": "-Recurse",
+    // human readable (handled in translation)
+    "-s": "-Recurse",
+    // summarize
+    "-a": "-Recurse",
+    // all files
+    "-c": "-Recurse"
+    // total
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const SYSTEMCTL_MAPPING: CommandMapping = {
+var SYSTEMCTL_MAPPING = {
   unix: "systemctl",
-  ps: "Get-Service", // default fallback
+  ps: "Get-Service",
+  // default fallback
   flagMap: {
     "start": "Start-Service",
-    "stop": "Stop-Service", 
+    "stop": "Stop-Service",
     "restart": "Restart-Service",
     "status": "Get-Service",
     "enable": "Set-Service -StartupType Automatic",
     "disable": "Set-Service -StartupType Disabled",
-    "reload": "Restart-Service",
+    "reload": "Restart-Service"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const LESS_MAPPING: CommandMapping = {
+var LESS_MAPPING = {
   unix: "less",
   ps: "Get-Content | Out-Host -Paging",
   flagMap: {
     "-N": "-LineNumber",
-    "-M": "", // show more info (handled in translation)
-    "-R": "", // raw control chars (handled in translation)
+    "-M": "",
+    // show more info (handled in translation)
+    "-R": ""
+    // raw control chars (handled in translation)
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const MORE_MAPPING: CommandMapping = {
+var MORE_MAPPING = {
   unix: "more",
   ps: "Get-Content | Out-Host -Paging",
   flagMap: {
     "-N": "-LineNumber",
-    "-c": "", // clear screen (handled in translation)
-    "-p": "", // pattern search (handled in translation)
+    "-c": "",
+    // clear screen (handled in translation)
+    "-p": ""
+    // pattern search (handled in translation)
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const PING_MAPPING: CommandMapping = {
+var PING_MAPPING = {
   unix: "ping",
   ps: "Test-Connection",
   flagMap: {
@@ -384,60 +491,47 @@ const PING_MAPPING: CommandMapping = {
     "-t": "-TimeoutSeconds",
     "-W": "-TimeoutSeconds",
     "-s": "-BufferSize",
-    "-l": "-BufferSize",
+    "-l": "-BufferSize"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const TOP_MAPPING: CommandMapping = {
+var TOP_MAPPING = {
   unix: "top",
   ps: "Get-Process | Sort-Object CPU -Descending | Select-Object -First 20",
   flagMap: {
     "-n": "-First",
     "-p": "-Id",
-    "-u": "-IncludeUserName",
+    "-u": "-IncludeUserName"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const RMDIR_MAPPING: CommandMapping = {
+var RMDIR_MAPPING = {
   unix: "rmdir",
   ps: "Remove-Item -Directory",
   flagMap: {
     "-p": "-Recurse",
-    "-v": "-Verbose",
+    "-v": "-Verbose"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const UPTIME_MAPPING: CommandMapping = {
+var UPTIME_MAPPING = {
   unix: "uptime",
   ps: "(Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime",
   flagMap: {},
-  forceArgs: false,
+  forceArgs: false
 };
-
-const FREE_MAPPING: CommandMapping = {
+var FREE_MAPPING = {
   unix: "free",
   ps: "Get-Counter '\\Memory\\Available MBytes' | Select-Object -ExpandProperty CounterSamples | Select-Object InstanceName,CookedValue",
   flagMap: {
-    "-h": "", // human readable (handled in translation)
-    "-m": "", // MB format (handled in translation)
+    "-h": "",
+    // human readable (handled in translation)
+    "-m": ""
+    // MB format (handled in translation)
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const NL_MAPPING: CommandMapping = {
-  unix: "nl",
-  ps: "Get-Content | ForEach-Object { $i++; \"$i`t$_\" }",
-  flagMap: {
-    "-b": "", // body numbering (handled in translation)
-    "-n": "", // number format (handled in translation)
-  },
-  forceArgs: false,
-};
-
-const NETSTAT_MAPPING: CommandMapping = {
+var NETSTAT_MAPPING = {
   unix: "netstat",
   ps: "Get-NetTCPConnection",
   flagMap: {
@@ -446,12 +540,11 @@ const NETSTAT_MAPPING: CommandMapping = {
     "-l": "-State Listen",
     "-n": "-State Listen",
     "-a": "-State Listen",
-    "-p": "-State Listen",
+    "-p": "-State Listen"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const SSH_MAPPING: CommandMapping = {
+var SSH_MAPPING = {
   unix: "ssh",
   ps: "ssh",
   flagMap: {
@@ -459,225 +552,203 @@ const SSH_MAPPING: CommandMapping = {
     "-i": "-i",
     "-o": "-o",
     "-L": "-L",
-    "-D": "-D",
+    "-D": "-D"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const GZIP_MAPPING: CommandMapping = {
+var GZIP_MAPPING = {
   unix: "gzip",
   ps: "Compress-Archive",
   flagMap: {
     "-d": "-DestinationPath",
     "-r": "-Recurse",
     "-f": "-Force",
-    "-v": "-Verbose",
+    "-v": "-Verbose"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const GUNZIP_MAPPING: CommandMapping = {
+var GUNZIP_MAPPING = {
   unix: "gunzip",
   ps: "Expand-Archive",
   flagMap: {
     "-f": "-Force",
     "-v": "-Verbose",
-    "-l": "-ListOnly",
+    "-l": "-ListOnly"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const JOBS_MAPPING: CommandMapping = {
+var JOBS_MAPPING = {
   unix: "jobs",
   ps: "Get-Job",
   flagMap: {
     "-l": "-IncludeChildJob",
     "-p": "-Id",
     "-r": "-State Running",
-    "-s": "-State Stopped",
+    "-s": "-State Stopped"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const BG_MAPPING: CommandMapping = {
+var BG_MAPPING = {
   unix: "bg",
   ps: "Resume-Job",
   flagMap: {},
-  forceArgs: false,
+  forceArgs: false
 };
-
-const FG_MAPPING: CommandMapping = {
+var FG_MAPPING = {
   unix: "fg",
   ps: "Receive-Job",
   flagMap: {},
-  forceArgs: false,
+  forceArgs: false
 };
-
-const NICE_MAPPING: CommandMapping = {
+var NICE_MAPPING = {
   unix: "nice",
   ps: "Start-Process",
   flagMap: {
-    "-n": "-Priority",
+    "-n": "-Priority"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const NOHUP_MAPPING: CommandMapping = {
+var NOHUP_MAPPING = {
   unix: "nohup",
   ps: "Start-Process",
   flagMap: {
-    "-n": "-NoNewWindow",
+    "-n": "-NoNewWindow"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const CHGRP_MAPPING: CommandMapping = {
+var CHGRP_MAPPING = {
   unix: "chgrp",
   ps: "icacls",
   flagMap: {
     "-R": "/T",
-    "-v": "/Q",
+    "-v": "/Q"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const UMASK_MAPPING: CommandMapping = {
+var UMASK_MAPPING = {
   unix: "umask",
   ps: "Get-ChildItem",
   flagMap: {
-    "-S": "",
+    "-S": ""
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const MKTEMP_MAPPING: CommandMapping = {
+var MKTEMP_MAPPING = {
   unix: "mktemp",
   ps: "New-TemporaryFile",
   flagMap: {
     "-d": "",
-    "-u": "",
+    "-u": ""
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const REALPATH_MAPPING: CommandMapping = {
+var REALPATH_MAPPING = {
   unix: "realpath",
   ps: "Resolve-Path",
   flagMap: {
     "-q": "-Quiet",
-    "-s": "-Relative",
+    "-s": "-Relative"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const JOIN_MAPPING: CommandMapping = {
+var JOIN_MAPPING = {
   unix: "join",
   ps: "Join-Object",
   flagMap: {
     "-1": "-JoinProperty",
     "-2": "-MergeProperty",
-    "-t": "-Delimiter",
+    "-t": "-Delimiter"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const COMM_MAPPING: CommandMapping = {
+var COMM_MAPPING = {
   unix: "comm",
   ps: "Compare-Object",
   flagMap: {
     "-1": "-IncludeEqual",
     "-2": "-IncludeEqual",
-    "-3": "-IncludeEqual",
+    "-3": "-IncludeEqual"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const EXPAND_MAPPING: CommandMapping = {
+var EXPAND_MAPPING = {
   unix: "expand",
   ps: "Get-Content",
   flagMap: {
     "-t": "-TabSize",
-    "-i": "-Initial",
+    "-i": "-Initial"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const UNEXPAND_MAPPING: CommandMapping = {
+var UNEXPAND_MAPPING = {
   unix: "unexpand",
   ps: "Get-Content",
   flagMap: {
     "-a": "-All",
-    "-t": "-TabSize",
+    "-t": "-TabSize"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const FOLD_MAPPING: CommandMapping = {
+var FOLD_MAPPING = {
   unix: "fold",
   ps: "Get-Content",
   flagMap: {
     "-b": "-Bytes",
     "-s": "-Spaces",
-    "-w": "-Width",
+    "-w": "-Width"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const FMT_MAPPING: CommandMapping = {
+var FMT_MAPPING = {
   unix: "fmt",
   ps: "Get-Content",
   flagMap: {
     "-w": "-Width",
     "-g": "-Goal",
-    "-p": "-Prefix",
+    "-p": "-Prefix"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const TELNET_MAPPING: CommandMapping = {
+var TELNET_MAPPING = {
   unix: "telnet",
   ps: "Test-NetConnection",
   flagMap: {
     "-p": "-Port",
-    "-l": "-LocalAddress",
+    "-l": "-LocalAddress"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const NC_MAPPING: CommandMapping = {
+var NC_MAPPING = {
   unix: "nc",
   ps: "Test-NetConnection",
   flagMap: {
     "-v": "-Verbose",
     "-w": "-TimeoutSeconds",
     "-l": "-Listen",
-    "-p": "-Port",
+    "-p": "-Port"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const DIG_MAPPING: CommandMapping = {
+var DIG_MAPPING = {
   unix: "dig",
   ps: "Resolve-DnsName",
   flagMap: {
     "+short": "-Type A",
     "+trace": "-Type NS",
-    "-x": "-Type PTR",
+    "-x": "-Type PTR"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const NSLOOKUP_MAPPING: CommandMapping = {
+var NSLOOKUP_MAPPING = {
   unix: "nslookup",
   ps: "Resolve-DnsName",
   flagMap: {
     "-type": "-Type",
-    "-port": "-Port",
+    "-port": "-Port"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const MAKE_MAPPING: CommandMapping = {
+var MAKE_MAPPING = {
   unix: "make",
   ps: "make",
   flagMap: {
@@ -685,12 +756,11 @@ const MAKE_MAPPING: CommandMapping = {
     "-f": "-f",
     "-C": "-C",
     "clean": "clean",
-    "install": "install",
+    "install": "install"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const GCC_MAPPING: CommandMapping = {
+var GCC_MAPPING = {
   unix: "gcc",
   ps: "gcc",
   flagMap: {
@@ -698,12 +768,11 @@ const GCC_MAPPING: CommandMapping = {
     "-c": "-c",
     "-g": "-g",
     "-Wall": "-Wall",
-    "-std": "-std",
+    "-std": "-std"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const GPP_MAPPING: CommandMapping = {
+var GPP_MAPPING = {
   unix: "g++",
   ps: "g++",
   flagMap: {
@@ -711,12 +780,11 @@ const GPP_MAPPING: CommandMapping = {
     "-c": "-c",
     "-g": "-g",
     "-Wall": "-Wall",
-    "-std": "-std",
+    "-std": "-std"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const GIT_MAPPING: CommandMapping = {
+var GIT_MAPPING = {
   unix: "git",
   ps: "git",
   flagMap: {
@@ -727,12 +795,11 @@ const GIT_MAPPING: CommandMapping = {
     "status": "status",
     "log": "log",
     "branch": "branch",
-    "checkout": "checkout",
+    "checkout": "checkout"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const APT_MAPPING: CommandMapping = {
+var APT_MAPPING = {
   unix: "apt",
   ps: "winget",
   flagMap: {
@@ -741,12 +808,11 @@ const APT_MAPPING: CommandMapping = {
     "update": "upgrade",
     "upgrade": "upgrade",
     "search": "search",
-    "list": "list",
+    "list": "list"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const APT_GET_MAPPING: CommandMapping = {
+var APT_GET_MAPPING = {
   unix: "apt-get",
   ps: "winget",
   flagMap: {
@@ -755,12 +821,11 @@ const APT_GET_MAPPING: CommandMapping = {
     "update": "upgrade",
     "upgrade": "upgrade",
     "search": "search",
-    "list": "list",
+    "list": "list"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const YUM_MAPPING: CommandMapping = {
+var YUM_MAPPING = {
   unix: "yum",
   ps: "winget",
   flagMap: {
@@ -769,12 +834,11 @@ const YUM_MAPPING: CommandMapping = {
     "update": "upgrade",
     "upgrade": "upgrade",
     "search": "search",
-    "list": "list",
+    "list": "list"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const DNF_MAPPING: CommandMapping = {
+var DNF_MAPPING = {
   unix: "dnf",
   ps: "winget",
   flagMap: {
@@ -783,12 +847,11 @@ const DNF_MAPPING: CommandMapping = {
     "update": "upgrade",
     "upgrade": "upgrade",
     "search": "search",
-    "list": "list",
+    "list": "list"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const BREW_MAPPING: CommandMapping = {
+var BREW_MAPPING = {
   unix: "brew",
   ps: "winget",
   flagMap: {
@@ -797,13 +860,11 @@ const BREW_MAPPING: CommandMapping = {
     "update": "upgrade",
     "upgrade": "upgrade",
     "search": "search",
-    "list": "list",
+    "list": "list"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-// System Information & Monitoring
-const UNAME_MAPPING: CommandMapping = {
+var UNAME_MAPPING = {
   unix: "uname",
   ps: "Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, TotalPhysicalMemory",
   flagMap: {
@@ -812,12 +873,11 @@ const UNAME_MAPPING: CommandMapping = {
     "-m": "-m",
     "-n": "-n",
     "-p": "-p",
-    "-s": "-s",
+    "-s": "-s"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const ID_MAPPING: CommandMapping = {
+var ID_MAPPING = {
   unix: "id",
   ps: "Get-Process -Id $PID | Select-Object ProcessName, Id, UserName",
   flagMap: {
@@ -825,19 +885,17 @@ const ID_MAPPING: CommandMapping = {
     "-g": "-g",
     "-G": "-G",
     "-n": "-n",
-    "-r": "-r",
+    "-r": "-r"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const GROUPS_MAPPING: CommandMapping = {
+var GROUPS_MAPPING = {
   unix: "groups",
   ps: "Get-LocalGroup | Select-Object Name, Description",
   flagMap: {},
-  forceArgs: false,
+  forceArgs: false
 };
-
-const WHO_MAPPING: CommandMapping = {
+var WHO_MAPPING = {
   unix: "who",
   ps: "Get-Process | Where-Object {$_.ProcessName -like '*explorer*' -or $_.ProcessName -like '*winlogon*'} | Select-Object ProcessName, Id, UserName",
   flagMap: {
@@ -850,54 +908,48 @@ const WHO_MAPPING: CommandMapping = {
     "-p": "-p",
     "-r": "-r",
     "-t": "-t",
-    "-u": "-u",
+    "-u": "-u"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const W_MAPPING: CommandMapping = {
+var W_MAPPING = {
   unix: "w",
   ps: "Get-Process | Where-Object {$_.ProcessName -like '*explorer*' -or $_.ProcessName -like '*winlogon*'} | Select-Object ProcessName, Id, UserName, CPU, WorkingSet",
   flagMap: {
     "hide": "-h",
     "noheader": "-s",
     "short": "-s",
-    "users": "-u",
+    "users": "-u"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-// File & Text Operations
-const REV_MAPPING: CommandMapping = {
+var REV_MAPPING = {
   unix: "rev",
   ps: "Get-Content $args | ForEach-Object { [string]::Join('', ($_.ToCharArray() | Sort-Object -Descending)) }",
   flagMap: {},
-  forceArgs: false,
+  forceArgs: false
 };
-
-const TAC_MAPPING: CommandMapping = {
+var TAC_MAPPING = {
   unix: "tac",
   ps: "Get-Content $args | Sort-Object -Descending",
   flagMap: {
     "before": "-b",
     "regex": "-r",
-    "separator": "-s",
+    "separator": "-s"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const COLUMN_MAPPING: CommandMapping = {
+var COLUMN_MAPPING = {
   unix: "column",
   ps: "Get-Content $args | Format-Table -AutoSize",
   flagMap: {
     "separator": "-s",
     "table": "-t",
-    "width": "-w",
+    "width": "-w"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const PR_MAPPING: CommandMapping = {
+var PR_MAPPING = {
   unix: "pr",
   ps: "Get-Content $args | Format-List",
   flagMap: {
@@ -911,34 +963,29 @@ const PR_MAPPING: CommandMapping = {
     "output": "-o",
     "page": "-p",
     "separator": "-s",
-    "width": "-w",
+    "width": "-w"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const CSPLIT_MAPPING: CommandMapping = {
+var CSPLIT_MAPPING = {
   unix: "csplit",
-  ps: "Get-Content $args | ForEach-Object { if ($_ -match $pattern) { $i++; Set-Content \"split$i.txt\" -Value $_ } }",
+  ps: 'Get-Content $args | ForEach-Object { if ($_ -match $pattern) { $i++; Set-Content "split$i.txt" -Value $_ } }',
   flagMap: {
     "prefix": "-f",
     "digits": "-n",
     "keep": "-k",
     "quiet": "-q",
-    "suppress": "-s",
+    "suppress": "-s"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-// Advanced Text Processing
-const TSORT_MAPPING: CommandMapping = {
+var TSORT_MAPPING = {
   unix: "tsort",
   ps: "Get-Content $args | Sort-Object",
   flagMap: {},
-  forceArgs: false,
+  forceArgs: false
 };
-
-// System Control
-const SHUTDOWN_MAPPING: CommandMapping = {
+var SHUTDOWN_MAPPING = {
   unix: "shutdown",
   ps: "Stop-Computer",
   flagMap: {
@@ -946,45 +993,40 @@ const SHUTDOWN_MAPPING: CommandMapping = {
     "poweroff": "-P",
     "reboot": "-r",
     "cancel": "-c",
-    "time": "-t",
+    "time": "-t"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const REBOOT_MAPPING: CommandMapping = {
+var REBOOT_MAPPING = {
   unix: "reboot",
   ps: "Restart-Computer",
   flagMap: {
     "force": "-f",
-    "now": "-n",
+    "now": "-n"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const HALT_MAPPING: CommandMapping = {
+var HALT_MAPPING = {
   unix: "halt",
   ps: "Stop-Computer -Force",
   flagMap: {
     "force": "-f",
     "poweroff": "-p",
-    "reboot": "-r",
+    "reboot": "-r"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const POWEROFF_MAPPING: CommandMapping = {
+var POWEROFF_MAPPING = {
   unix: "poweroff",
   ps: "Stop-Computer -Force",
   flagMap: {
     "force": "-f",
     "halt": "-h",
-    "reboot": "-r",
+    "reboot": "-r"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-// User Management
-const USERADD_MAPPING: CommandMapping = {
+var USERADD_MAPPING = {
   unix: "useradd",
   ps: "New-LocalUser",
   flagMap: {
@@ -995,22 +1037,20 @@ const USERADD_MAPPING: CommandMapping = {
     "groups": "-G",
     "system": "-r",
     "shell": "-s",
-    "uid": "-u",
+    "uid": "-u"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const USERDEL_MAPPING: CommandMapping = {
+var USERDEL_MAPPING = {
   unix: "userdel",
   ps: "Remove-LocalUser",
   flagMap: {
     "force": "-f",
-    "remove": "-r",
+    "remove": "-r"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const PASSWD_MAPPING: CommandMapping = {
+var PASSWD_MAPPING = {
   unix: "passwd",
   ps: "Set-LocalUser -Password (Read-Host -AsSecureString 'Enter new password')",
   flagMap: {
@@ -1018,24 +1058,22 @@ const PASSWD_MAPPING: CommandMapping = {
     "expire": "-e",
     "force": "-f",
     "lock": "-l",
-    "unlock": "-u",
+    "unlock": "-u"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const SU_MAPPING: CommandMapping = {
+var SU_MAPPING = {
   unix: "su",
   ps: "Start-Process powershell -Verb RunAs",
   flagMap: {
     "command": "-c",
     "login": "-l",
     "preserve": "-p",
-    "shell": "-s",
+    "shell": "-s"
   },
-  forceArgs: false,
+  forceArgs: false
 };
-
-const SUDO_MAPPING: CommandMapping = {
+var SUDO_MAPPING = {
   unix: "sudo",
   ps: "Start-Process powershell -Verb RunAs -ArgumentList",
   flagMap: {
@@ -1044,12 +1082,11 @@ const SUDO_MAPPING: CommandMapping = {
     "preserve": "-p",
     "shell": "-s",
     "user": "-u",
-    "group": "-g",
+    "group": "-g"
   },
-  forceArgs: true,
+  forceArgs: true
 };
-
-const BASE_MAPPINGS: CommandMapping[] = [
+var BASE_MAPPINGS = [
   RM_MAPPING,
   MKDIR_MAPPING,
   LS_MAPPING,
@@ -1142,53 +1179,35 @@ const BASE_MAPPINGS: CommandMapping[] = [
   USERDEL_MAPPING,
   PASSWD_MAPPING,
   SU_MAPPING,
-  SUDO_MAPPING,
+  SUDO_MAPPING
 ];
-
-const EXTRA_MAPPINGS: CommandMapping[] = [];
-
-export function addExtraMappings(maps: CommandMapping[]) {
-  for (const m of maps) {
-    // naive de-dup: skip if unix name already exists in base or extra
-    if (BASE_MAPPINGS.some((x) => x.unix === m.unix) || EXTRA_MAPPINGS.some((x) => x.unix === m.unix)) continue;
-    EXTRA_MAPPINGS.push(m);
-  }
-}
-
-export const MAPPINGS: CommandMapping[] = [...BASE_MAPPINGS, ...EXTRA_MAPPINGS];
-
-function smartJoin(tokens: string[]): string {
-  const merged: string[] = [];
+var EXTRA_MAPPINGS = [];
+var MAPPINGS = [...BASE_MAPPINGS, ...EXTRA_MAPPINGS];
+function smartJoin(tokens) {
+  const merged = [];
   for (let i = 0; i < tokens.length; i++) {
     const tok = tokens[i];
-
-    // Pattern: N >  or N >>  or N >& etc. Merge numeric fd with operator (and possibly target fd)
     if (/^\d+$/.test(tok) && i + 1 < tokens.length) {
       const op = tokens[i + 1];
       if (op === ">" || op === ">>" || op === ">&" || op === ">|" || op === "<&" || op === ">>&") {
         let combined = tok + op;
         let skip = 1;
-        // Handle forms like 2>&1 where next token after op is also a number
         if ((op === ">&" || op === "<&") && i + 2 < tokens.length && /^\d+$/.test(tokens[i + 2])) {
           combined += tokens[i + 2];
           skip = 2;
         }
         merged.push(combined);
-        i += skip; // Skip the operator (and maybe the target fd)
+        i += skip;
         continue;
       }
     }
-
     merged.push(tok);
   }
   return merged.join(" ");
 }
-
-// Helper to merge command substitution sequences like $, (, ..., ) into a single token.
-function mergeCommandSubs(tokens: string[]): string[] {
-  const out: string[] = [];
+function mergeCommandSubs(tokens) {
+  const out = [];
   for (let i = 0; i < tokens.length; i++) {
-    // Case 1: tokens split as "$", "(", ...
     if (tokens[i] === "$" && i + 1 < tokens.length && tokens[i + 1] === "(") {
       let depth = 0;
       let j = i + 1;
@@ -1198,7 +1217,6 @@ function mergeCommandSubs(tokens: string[]): string[] {
         } else if (tokens[j] === ")") {
           depth--;
           if (depth < 0) {
-            // closing for the opening just before loop (depth becomes -1)
             break;
           }
         }
@@ -1206,11 +1224,10 @@ function mergeCommandSubs(tokens: string[]): string[] {
       if (j < tokens.length) {
         const combined = tokens.slice(i, j + 1).join("");
         out.push(combined);
-        i = j; // skip until after ')'
+        i = j;
         continue;
       }
     }
-    // Case 2: token already starts with '$(', need to merge until matching ')'
     if (tokens[i].startsWith("$(")) {
       let combined = tokens[i];
       let j = i;
@@ -1226,11 +1243,9 @@ function mergeCommandSubs(tokens: string[]): string[] {
   }
   return out;
 }
-
-function mergeEnvExp(tokens: string[]): string[] {
-  const out: string[] = [];
+function mergeEnvExp(tokens) {
+  const out = [];
   for (let i = 0; i < tokens.length; i++) {
-    // Case 1: tokens split as "$", "{", ...
     if (tokens[i] === "$" && i + 1 < tokens.length && tokens[i + 1].startsWith("{")) {
       let combined = tokens[i] + tokens[i + 1];
       let j = i + 1;
@@ -1239,34 +1254,30 @@ function mergeEnvExp(tokens: string[]): string[] {
         j++;
         const token = tokens[j];
         combined += token;
-        // Count braces to handle nested constructs like ${VAR:-${DEFAULT}}
         for (const char of token) {
-          if (char === '{') braceDepth++;
-          if (char === '}') braceDepth--;
+          if (char === "{") braceDepth++;
+          if (char === "}") braceDepth--;
         }
       }
       out.push(combined);
       i = j;
       continue;
     }
-    // Case 2: token already starts with '${'
     if (tokens[i].startsWith("${")) {
       let combined = tokens[i];
       let j = i;
       let braceDepth = 1;
-      // Count opening braces in the first token
       for (const char of combined) {
-        if (char === '{') braceDepth++;
-        if (char === '}') braceDepth--;
+        if (char === "{") braceDepth++;
+        if (char === "}") braceDepth--;
       }
       while (braceDepth > 0 && j + 1 < tokens.length) {
         j++;
         const token = tokens[j];
         combined += token;
-        // Count braces in subsequent tokens
         for (const char of token) {
-          if (char === '{') braceDepth++;
-          if (char === '}') braceDepth--;
+          if (char === "{") braceDepth++;
+          if (char === "}") braceDepth--;
         }
       }
       out.push(combined);
@@ -1277,21 +1288,16 @@ function mergeEnvExp(tokens: string[]): string[] {
   }
   return out;
 }
-
-function mergeHereDocs(tokens: string[]): string[] {
-  const out: string[] = [];
+function mergeHereDocs(tokens) {
+  const out = [];
   for (let i = 0; i < tokens.length; i++) {
-    // Handle here-document syntax: << 'EOF'
     if (tokens[i] === "<" && i + 1 < tokens.length && tokens[i + 1] === "<") {
       let combined = tokens[i] + tokens[i + 1];
       let j = i + 1;
-      
-      // Look for the delimiter (e.g., 'EOF', EOF)
       if (j + 1 < tokens.length) {
         j++;
         combined += tokens[j];
       }
-      
       out.push(combined);
       i = j;
       continue;
@@ -1300,26 +1306,22 @@ function mergeHereDocs(tokens: string[]): string[] {
   }
   return out;
 }
-
-function mergeProcessSubs(tokens: string[]): string[] {
-  const out: string[] = [];
+function mergeProcessSubs(tokens) {
+  const out = [];
   for (let i = 0; i < tokens.length; i++) {
-    // Handle process substitution: <(command)
     if (tokens[i] === "<" && i + 1 < tokens.length && tokens[i + 1] === "(") {
       let combined = tokens[i] + tokens[i + 1];
       let j = i + 1;
       let parenDepth = 1;
-      
       while (parenDepth > 0 && j + 1 < tokens.length) {
         j++;
         const token = tokens[j];
         combined += token;
         for (const char of token) {
-          if (char === '(') parenDepth++;
-          if (char === ')') parenDepth--;
+          if (char === "(") parenDepth++;
+          if (char === ")") parenDepth--;
         }
       }
-      
       out.push(combined);
       i = j;
       continue;
@@ -1328,33 +1330,22 @@ function mergeProcessSubs(tokens: string[]): string[] {
   }
   return out;
 }
-
-// Wrap previous smartJoin merging with command substitution merge first
-const originalSmartJoin = smartJoin;
-function smartJoinEnhanced(tokens: string[]): string {
+var originalSmartJoin = smartJoin;
+function smartJoinEnhanced(tokens) {
   const mergedSubs = mergeProcessSubs(mergeHereDocs(mergeCommandSubs(mergeEnvExp(tokens))));
   const out = originalSmartJoin(mergedSubs);
   return out.replace(/\$\s+\(/g, "$(").replace(/\(\s+/g, "(").replace(/\s+\)/g, ")");
 }
-
-function isRedirToken(val: string): boolean {
-  return /^(\d*>>?&?\d*|[<>]{1,2}|&>?)$/.test(val);
-}
-
-export function translateSingleUnixSegment(segment: string): string {
+function translateSingleUnixSegment(segment) {
   if (segment.includes("${")) {
     return segment;
   }
-
   const trimmed = segment.trim();
   if (trimmed.startsWith("(") || trimmed.startsWith("{")) {
     return segment;
   }
-
-  // Tokenise using the shared helpers so quoting/escaping rules are consistent across the codebase.
   const roleTokens = tagTokenRoles(tokenizeWithPos(segment));
   if (roleTokens.length === 0) return segment;
-
   let hasHereDoc = roleTokens.some((t) => t.value === "<<");
   const tokensValues = roleTokens.map((t) => t.value);
   for (let i = 0; i < tokensValues.length - 1; i++) {
@@ -1363,38 +1354,23 @@ export function translateSingleUnixSegment(segment: string): string {
       break;
     }
   }
-
   if (hasHereDoc) {
     return segment;
   }
-
-  // redirection tokens remain classified as arguments, so they automatically
-  // flow through the argTokens array below.
-
   const tokens = roleTokens.map((t) => t.value);
-  // Precompute flag + arg tokens for dynamic rules that need them early
   const earlyFlagTokens = roleTokens.filter((t) => t.role === "flag").map((t) => t.value);
   const earlyArgTokens = roleTokens.filter((t) => t.role === "arg").map((t) => t.value);
-
-  // First command token gives us the Unix command name
   const cmdToken = roleTokens.find((t) => t.role === "cmd");
   if (!cmdToken) return segment;
   const cmd = cmdToken.value;
-
-  // -----------------------------
-  // Dynamic translations
-  // -----------------------------
-
-  // head / tail
   if (cmd === "head" || cmd === "tail") {
-    let count: number | undefined;
+    let count;
     for (let i = 1; i < tokens.length; i++) {
       const tok = tokens[i];
       if (/^-\d+$/.test(tok)) {
         count = parseInt(tok.slice(1), 10);
         break;
       }
-      // -n 10   OR   -c 10  (bytes)  — we translate both the same way
       if (tok === "-n" && i + 1 < tokens.length) {
         count = parseInt(tokens[i + 1], 10);
         break;
@@ -1403,7 +1379,6 @@ export function translateSingleUnixSegment(segment: string): string {
         count = parseInt(tokens[i + 1], 10);
         break;
       }
-      // compact forms: -n10 or -c10
       if (/^-n\d+$/.test(tok)) {
         count = parseInt(tok.slice(2), 10);
         break;
@@ -1414,70 +1389,59 @@ export function translateSingleUnixSegment(segment: string): string {
       }
     }
     if (!count || isNaN(count)) return segment;
-
     const flag = cmd === "head" ? "-First" : "-Last";
-    const targetArgs = roleTokens
-      .slice(1) // drop cmd token
-      .filter((t) => {
-        if (t.role === "flag") return false;
-        if (t.value === String(count)) return false;
+    const targetArgs = roleTokens.slice(1).filter((t) => {
+      if (t.role === "flag") return false;
+      if (t.value === String(count)) return false;
       return true;
-      })
-      .map((t) => t.value);
-
+    }).map((t) => t.value);
     const psCmd = `Select-Object ${flag} ${count}`;
     return smartJoinEnhanced([psCmd, ...targetArgs]);
   }
-
-  // wc -l
   if (cmd === "wc" && tokens.length >= 2 && tokens[1] === "-l") {
     const restArgs = tokens.slice(2);
     return smartJoinEnhanced(["Measure-Object -Line", ...restArgs]);
   }
-
-  // rsync -av (local file synchronization)
   if (cmd === "rsync") {
     const hasArchive = earlyFlagTokens.includes("-a") || earlyFlagTokens.includes("-av");
     const hasVerbose = earlyFlagTokens.includes("-v");
     const hasRecurse = earlyFlagTokens.includes("-r");
-    
     if (hasArchive || hasRecurse) {
       const targetArgs = earlyArgTokens;
       return smartJoinEnhanced(["Copy-Item", "-Recurse", ...targetArgs]);
     }
-    
-    // For remote rsync, preserve the command
     return segment;
   }
-
-  // du - disk usage
   if (cmd === "du") {
     const hasHuman = earlyFlagTokens.includes("-h");
     const hasSummarize = earlyFlagTokens.includes("-s");
     const targetArgs = earlyArgTokens;
-    
     if (hasSummarize) {
-      // du -sh directory/ -> Get-ChildItem -Recurse | Measure-Object -Property Length -Sum
       return smartJoinEnhanced([
-        "Get-ChildItem", "-Recurse", ...targetArgs, "|", 
-        "Measure-Object", "-Property", "Length", "-Sum"
+        "Get-ChildItem",
+        "-Recurse",
+        ...targetArgs,
+        "|",
+        "Measure-Object",
+        "-Property",
+        "Length",
+        "-Sum"
       ]);
     } else if (hasHuman) {
-      // du -h file.txt -> Get-Item file.txt | Select-Object Name, @{Name='Size(MB)';Expression={[math]::Round($_.Length/1MB,2)}}
       return smartJoinEnhanced([
-        "Get-Item", ...targetArgs, "|", 
-        "Select-Object", "Name,", "@{Name='Size(MB)';Expression={[math]::Round($_.Length/1MB,2)}}"
+        "Get-Item",
+        ...targetArgs,
+        "|",
+        "Select-Object",
+        "Name,",
+        "@{Name='Size(MB)';Expression={[math]::Round($_.Length/1MB,2)}}"
       ]);
     }
-    
     return smartJoinEnhanced(["Get-ChildItem", "-Recurse", ...targetArgs, "|", "Measure-Object", "-Property", "Length", "-Sum"]);
   }
-
-  // systemctl - service management
   if (cmd === "systemctl" && tokens.length >= 2) {
     const action = tokens[1];
     const serviceName = tokens[2];
-    
     switch (action) {
       case "start":
         return smartJoinEnhanced(["Start-Service", serviceName]);
@@ -1497,77 +1461,56 @@ export function translateSingleUnixSegment(segment: string): string {
         return segment;
     }
   }
-
-  // chmod - file permissions
   if (cmd === "chmod") {
     const mode = tokens[1];
     const targetArgs = earlyArgTokens;
-    
     if (mode && /^\d{3,4}$/.test(mode)) {
-      // Convert numeric mode to icacls format
       const permissions = mode.slice(-3);
       const owner = permissions[0];
       const group = permissions[1];
       const other = permissions[2];
-      
       let icaclsPerms = "";
       if (owner >= "7") icaclsPerms += "F";
       else if (owner >= "6") icaclsPerms += "M";
       else if (owner >= "4") icaclsPerms += "R";
       else if (owner >= "2") icaclsPerms += "W";
       else if (owner >= "1") icaclsPerms += "X";
-      
       return smartJoinEnhanced(["icacls", ...targetArgs, "/grant", "Everyone:" + icaclsPerms]);
     }
-    
     return segment;
   }
-
-  // chown - ownership
   if (cmd === "chown") {
     const owner = tokens[1];
     const targetArgs = earlyArgTokens;
-    
     if (owner && owner.includes(":")) {
       const [user, group] = owner.split(":");
       return smartJoinEnhanced(["icacls", ...targetArgs, "/setowner", user]);
     } else if (owner) {
       return smartJoinEnhanced(["icacls", ...targetArgs, "/setowner", owner]);
     }
-    
     return segment;
   }
-
-  // ln - links
   if (cmd === "ln") {
     const hasSymbolic = earlyFlagTokens.includes("-s");
     const targetArgs = earlyArgTokens;
-    
     if (hasSymbolic) {
       return smartJoinEnhanced(["New-Item", "-ItemType", "SymbolicLink", "-Target", targetArgs[0], "-Name", targetArgs[1]]);
     } else {
-      // Hard link
       return smartJoinEnhanced(["New-Item", "-ItemType", "HardLink", "-Target", targetArgs[0], "-Name", targetArgs[1]]);
     }
   }
-
-  // sleep N
   if (cmd === "sleep" && tokens.length >= 2) {
     const duration = tokens[1];
     if (/^\d+$/.test(duration)) {
       return `Start-Sleep ${duration}`;
     }
   }
-
-  // whoami
   if (cmd === "whoami") {
     return "$env:USERNAME";
   }
-
-  // sed 's/old/new/'   (very naive implementation)
   if (cmd === "sed" && tokens.length >= 2) {
     const script = tokens[1];
-    const unq = script.startsWith("'") || script.startsWith("\"") ? script.slice(1, -1) : script;
+    const unq = script.startsWith("'") || script.startsWith('"') ? script.slice(1, -1) : script;
     if (unq.startsWith("s")) {
       const delim = unq[1];
       const parts = unq.slice(2).split(delim);
@@ -1575,15 +1518,13 @@ export function translateSingleUnixSegment(segment: string): string {
         const pattern = parts[0];
         const replacement = parts[1];
         const restArgs = tokens.slice(2);
-        // Ignore flags (e.g., 'g') since -replace is global by default in PowerShell
         const psPart = `-replace '${pattern}','${replacement}'`;
         return smartJoinEnhanced([psPart, ...restArgs]);
       }
     }
-    // sed -n 'Np'  (print specific line number)
     if (tokens.length >= 3 && tokens[1] === "-n") {
       const scriptTok = tokens[2];
-      const uq = scriptTok.startsWith("'") || scriptTok.startsWith("\"") ? scriptTok.slice(1, -1) : scriptTok;
+      const uq = scriptTok.startsWith("'") || scriptTok.startsWith('"') ? scriptTok.slice(1, -1) : scriptTok;
       const mLine = uq.match(/^(\d+)p$/);
       if (mLine) {
         const idx = parseInt(mLine[1], 10) - 1;
@@ -1595,11 +1536,9 @@ export function translateSingleUnixSegment(segment: string): string {
       }
     }
   }
-
-  // awk '{print $N}'  (only supports single field extract)
   if (cmd === "awk" && tokens.length >= 2) {
     const scriptTok = tokens[1];
-    const unq = scriptTok.startsWith("'") || scriptTok.startsWith("\"") ? scriptTok.slice(1, -1) : scriptTok;
+    const unq = scriptTok.startsWith("'") || scriptTok.startsWith('"') ? scriptTok.slice(1, -1) : scriptTok;
     const m = unq.match(/^\{\s*print\s+\$(\d+)\s*\}$/);
     if (m) {
       const fieldIdx = parseInt(m[1], 10);
@@ -1611,18 +1550,15 @@ export function translateSingleUnixSegment(segment: string): string {
       }
     }
   }
-
-  // cut -d <delim> -f N   (only supports single field number)
   if (cmd === "cut") {
-    let delim: string | undefined;
-    let fieldNum: number | undefined;
-    const otherArgs: string[] = [];
-
+    let delim;
+    let fieldNum;
+    const otherArgs = [];
     for (let i = 1; i < tokens.length; i++) {
       const tok = tokens[i];
       if (tok === "-d" && i + 1 < tokens.length) {
         delim = tokens[i + 1];
-        i++; // skip arg value
+        i++;
         continue;
       }
       if (tok.startsWith("-d") && tok.length > 2) {
@@ -1640,63 +1576,50 @@ export function translateSingleUnixSegment(segment: string): string {
         if (!isNaN(val)) fieldNum = val;
         continue;
       }
-      // accumulate as non-flag arg
       otherArgs.push(tok);
     }
-
-    if (fieldNum !== undefined) {
+    if (fieldNum !== void 0) {
       const fieldIdx = fieldNum - 1;
-      const delimExpr = delim ? delim.replace(/^['"]|['"]$/g, "") : "\t"; // default tab
+      const delimExpr = delim ? delim.replace(/^['"]|['"]$/g, "") : "	";
       const psPart = `ForEach-Object { $_.Split('${delimExpr}')[${fieldIdx}] }`;
       return smartJoinEnhanced([psPart, ...otherArgs]);
     }
   }
-
-  // tr 'a' 'b' (basic single-char sets)
   if (cmd === "tr" && tokens.length >= 3) {
     const fromTok = tokens[1];
     const toTok = tokens[2];
-    const stripQuote = (s: string) => (s.startsWith("'") || s.startsWith("\"") ? s.slice(1, -1) : s);
-    const from = stripQuote(fromTok);
-    const to = stripQuote(toTok);
+    const stripQuote2 = (s) => s.startsWith("'") || s.startsWith('"') ? s.slice(1, -1) : s;
+    const from = stripQuote2(fromTok);
+    const to = stripQuote2(toTok);
     if (from.length === to.length && from.length === 1) {
       const psPart = `ForEach-Object { $_.Replace('${from}','${to}') }`;
       const rest = tokens.slice(3);
       return smartJoinEnhanced([psPart, ...rest]);
     }
-    // simple set same length >1 translate using -replace char class
     if (from.length === to.length) {
-      const psPart = `ForEach-Object { $_ -replace '[${from}]','${(to.length === 1 ? to : `[${to}]`)}' }`;
+      const psPart = `ForEach-Object { $_ -replace '[${from}]','${to.length === 1 ? to : `[${to}]`}' }`;
       const rest = tokens.slice(3);
       return smartJoinEnhanced([psPart, ...rest]);
     }
   }
-
-  // uniq -c (count duplicates) – naive implementation
   if (cmd === "uniq" && earlyFlagTokens.includes("-c")) {
     const restArgs = earlyArgTokens;
-    const psPart = "Group-Object | ForEach-Object { \"$($_.Count) $($_.Name)\" }";
+    const psPart = 'Group-Object | ForEach-Object { "$($_.Count) $($_.Name)" }';
     return smartJoinEnhanced([psPart, ...restArgs]);
   }
-
-  // sort -n  (numeric sort)
   if (cmd === "sort" && earlyFlagTokens.includes("-n")) {
     const restArgs = earlyArgTokens;
     const psPart = "Sort-Object { [double]$_ }";
     return smartJoinEnhanced([psPart, ...restArgs]);
   }
-
-  // find quick translations (-delete | -exec echo {})
   if (cmd === "find") {
-    let pathArg: string | undefined;
-    let filterPattern: string | undefined;
+    let pathArg;
+    let filterPattern;
     let wantDelete = false;
     let wantExecEcho = false;
-
     for (let i = 1; i < tokens.length; i++) {
       const tok = tokens[i];
       if (!tok.startsWith("-")) {
-        // treat first non-flag as path (e.g., . or src)
         if (!pathArg) {
           pathArg = tok;
         }
@@ -1712,22 +1635,18 @@ export function translateSingleUnixSegment(segment: string): string {
         continue;
       }
       if (tok === "-exec" && i + 2 < tokens.length && tokens[i + 1] === "echo") {
-        // look ahead for '{}' and terminating ';' or '\;' but we just flag echo
         wantExecEcho = true;
-        // Skip until we see ';' or '\;'
         while (i + 1 < tokens.length && tokens[i + 1] !== ";" && tokens[i + 1] !== "\\;") {
           i++;
         }
         continue;
       }
     }
-
-    const parts: string[] = ["Get-ChildItem", pathArg ?? "", "-Recurse"].filter(Boolean);
+    const parts = ["Get-ChildItem", pathArg ?? "", "-Recurse"].filter(Boolean);
     if (filterPattern) {
       const unq = filterPattern.replace(/^['\"]|['\"]$/g, "");
       parts.push("-Filter", unq);
     }
-
     let pipeline = parts.join(" ");
     if (wantDelete) {
       pipeline += " | Remove-Item";
@@ -1738,8 +1657,6 @@ export function translateSingleUnixSegment(segment: string): string {
       return pipeline;
     }
   }
-
-  // xargs basic translation (optional -0) -> ForEach-Object { cmd args $_ }
   if (cmd === "xargs") {
     let idx = 1;
     const flagZero = tokens[1] === "-0";
@@ -1750,106 +1667,71 @@ export function translateSingleUnixSegment(segment: string): string {
     const psCmd = ["ForEach-Object {", subCmd, ...subArgs, "$_", "}"];
     return smartJoinEnhanced(psCmd);
   }
-
-  // less/more - file viewing with pagination
   if (cmd === "less" || cmd === "more") {
     const restArgs = earlyArgTokens;
     const hasLineNumbers = earlyFlagTokens.includes("-N");
-    const psPart = hasLineNumbers ? 
-      "Get-Content | ForEach-Object { $i++; \"$i`t$_\" } | Out-Host -Paging" :
-      "Get-Content | Out-Host -Paging";
+    const psPart = hasLineNumbers ? 'Get-Content | ForEach-Object { $i++; "$i`t$_" } | Out-Host -Paging' : "Get-Content | Out-Host -Paging";
     return smartJoinEnhanced([psPart, ...restArgs]);
   }
-
-  // ping - network connectivity testing
   if (cmd === "ping") {
     const target = earlyArgTokens[0];
     if (!target) return segment;
-    
-    const count = earlyFlagTokens.includes("-c") ? 
-      tokens[tokens.indexOf("-c") + 1] || "4" : "4";
-    const interval = earlyFlagTokens.includes("-i") ? 
-      tokens[tokens.indexOf("-i") + 1] || "1" : "1";
-    
+    const count = earlyFlagTokens.includes("-c") ? tokens[tokens.indexOf("-c") + 1] || "4" : "4";
+    const interval = earlyFlagTokens.includes("-i") ? tokens[tokens.indexOf("-i") + 1] || "1" : "1";
     return `Test-Connection -ComputerName ${target} -Count ${count} -Delay ${interval}`;
   }
-
-  // top - process monitoring
   if (cmd === "top") {
-    const count = earlyFlagTokens.includes("-n") ? 
-      tokens[tokens.indexOf("-n") + 1] || "20" : "20";
-    const processId = earlyFlagTokens.includes("-p") ? 
-      tokens[tokens.indexOf("-p") + 1] : undefined;
-    
+    const count = earlyFlagTokens.includes("-n") ? tokens[tokens.indexOf("-n") + 1] || "20" : "20";
+    const processId = earlyFlagTokens.includes("-p") ? tokens[tokens.indexOf("-p") + 1] : void 0;
     if (processId) {
       return `Get-Process -Id ${processId} | Select-Object Id,ProcessName,CPU,WorkingSet,PrivateMemorySize`;
     } else {
       return `Get-Process | Sort-Object CPU -Descending | Select-Object -First ${count} | Format-Table Id,ProcessName,CPU,WorkingSet,PrivateMemorySize -AutoSize`;
     }
   }
-
-  // rmdir - remove directories
   if (cmd === "rmdir") {
     const hasRecurse = earlyFlagTokens.includes("-p");
     const hasVerbose = earlyFlagTokens.includes("-v");
     const targetArgs = earlyArgTokens;
-    
     if (hasRecurse) {
       return smartJoinEnhanced(["Remove-Item", "-Directory", "-Recurse", ...targetArgs]);
     } else {
       return smartJoinEnhanced(["Remove-Item", "-Directory", ...targetArgs]);
     }
   }
-
-  // uptime - system uptime
   if (cmd === "uptime") {
-    return "(Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime | ForEach-Object { \"Uptime: $($_.Days) days, $($_.Hours) hours, $($_.Minutes) minutes\" }";
+    return '(Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime | ForEach-Object { "Uptime: $($_.Days) days, $($_.Hours) hours, $($_.Minutes) minutes" }';
   }
-
-  // free - memory usage
   if (cmd === "free") {
     const isHumanReadable = earlyFlagTokens.includes("-h");
     const isMB = earlyFlagTokens.includes("-m");
-    
     if (isHumanReadable || isMB) {
-      return "Get-Counter '\\Memory\\Available MBytes' | Select-Object -ExpandProperty CounterSamples | ForEach-Object { \"Available Memory: $([math]::Round($_.CookedValue, 2)) MB\" }";
+      return `Get-Counter '\\Memory\\Available MBytes' | Select-Object -ExpandProperty CounterSamples | ForEach-Object { "Available Memory: $([math]::Round($_.CookedValue, 2)) MB" }`;
     } else {
       return "Get-Counter '\\Memory\\Available MBytes' | Select-Object -ExpandProperty CounterSamples | Select-Object InstanceName,CookedValue";
     }
   }
-
-  // nl - number lines
   if (cmd === "nl") {
     const restArgs = earlyArgTokens;
     if (restArgs.length > 0) {
-      return `Get-Content ${restArgs.join(' ')} | ForEach-Object { $i++; "$i\t$_" }`;
+      return `Get-Content ${restArgs.join(" ")} | ForEach-Object { $i++; "$i	$_" }`;
     } else {
-      return "Get-Content | ForEach-Object { $i++; \"$i\t$_\" }";
+      return 'Get-Content | ForEach-Object { $i++; "$i	$_" }';
     }
   }
-
-  // sudo - run command with elevated privileges
   if (cmd === "sudo") {
     const restArgs = earlyArgTokens;
     if (restArgs.length > 0) {
-      // For sudo, we need to translate the command that follows it
       const subCommand = restArgs[0];
       const subArgs = restArgs.slice(1);
-      
-      // Recursively translate the sub-command
-      const translatedSubCommand = translateSingleUnixSegment([subCommand, ...subArgs].join(' '));
-      
-      // Wrap in Start-Process with elevated privileges
+      const translatedSubCommand = translateSingleUnixSegment([subCommand, ...subArgs].join(" "));
       return `Start-Process powershell -Verb RunAs -ArgumentList "-Command", "${translatedSubCommand}"`;
     }
     return segment;
   }
-
-  // netstat - network statistics
   if (cmd === "netstat") {
     const hasListen = earlyFlagTokens.includes("-l") || earlyFlagTokens.includes("-a");
     const hasNumeric = earlyFlagTokens.includes("-n");
-    
     if (hasListen) {
       return "Get-NetTCPConnection -State Listen | Format-Table LocalAddress,LocalPort,RemoteAddress,RemotePort,State -AutoSize";
     } else if (hasNumeric) {
@@ -1858,61 +1740,47 @@ export function translateSingleUnixSegment(segment: string): string {
       return "Get-NetTCPConnection | Select-Object -First 20 | Format-Table LocalAddress,LocalPort,RemoteAddress,RemotePort,State -AutoSize";
     }
   }
-
-  // gzip - compress files
   if (cmd === "gzip") {
     const hasDecompress = earlyFlagTokens.includes("-d");
     const hasRecurse = earlyFlagTokens.includes("-r");
     const hasForce = earlyFlagTokens.includes("-f");
     const targetArgs = earlyArgTokens;
-    
     if (hasDecompress) {
-      // gunzip behavior
       if (targetArgs.length > 0) {
-        return `Expand-Archive -Path ${targetArgs.join(' ')} -DestinationPath . -Force`;
+        return `Expand-Archive -Path ${targetArgs.join(" ")} -DestinationPath . -Force`;
       }
     } else {
-      // compress behavior
       if (targetArgs.length > 0) {
         const forceFlag = hasForce ? "-Force" : "";
-        return `Compress-Archive -Path ${targetArgs.join(' ')} -DestinationPath ${targetArgs[0]}.zip ${forceFlag}`;
+        return `Compress-Archive -Path ${targetArgs.join(" ")} -DestinationPath ${targetArgs[0]}.zip ${forceFlag}`;
       }
     }
   }
-
-  // gunzip - decompress files
   if (cmd === "gunzip") {
     const hasForce = earlyFlagTokens.includes("-f");
     const hasList = earlyFlagTokens.includes("-l");
     const targetArgs = earlyArgTokens;
-    
     if (hasList) {
-      return `Get-ChildItem ${targetArgs.join(' ')} | ForEach-Object { Write-Host "Archive: $($_.Name)" }`;
+      return `Get-ChildItem ${targetArgs.join(" ")} | ForEach-Object { Write-Host "Archive: $($_.Name)" }`;
     } else if (targetArgs.length > 0) {
       const forceFlag = hasForce ? "-Force" : "";
-      return `Expand-Archive -Path ${targetArgs.join(' ')} -DestinationPath . ${forceFlag}`;
+      return `Expand-Archive -Path ${targetArgs.join(" ")} -DestinationPath . ${forceFlag}`;
     }
   }
-
-  // mktemp - create temporary files/directories
   if (cmd === "mktemp") {
     const hasDirectory = earlyFlagTokens.includes("-d");
     const targetArgs = earlyArgTokens;
-    
     if (hasDirectory) {
       return `New-Item -ItemType Directory -Path $env:TEMP -Name ([System.IO.Path]::GetRandomFileName())`;
     } else {
       return `New-TemporaryFile`;
     }
   }
-
-  // dig - DNS lookup
   if (cmd === "dig") {
     const hasShort = earlyFlagTokens.includes("+short");
     const hasTrace = earlyFlagTokens.includes("+trace");
     const hasReverse = earlyFlagTokens.includes("-x");
     const targetArgs = earlyArgTokens;
-    
     if (hasShort && targetArgs.length > 0) {
       return `Resolve-DnsName ${targetArgs[0]} -Type A | Select-Object -ExpandProperty IPAddress`;
     } else if (hasTrace && targetArgs.length > 0) {
@@ -1923,36 +1791,296 @@ export function translateSingleUnixSegment(segment: string): string {
       return `Resolve-DnsName ${targetArgs[0]}`;
     }
   }
-  // -----------------------------
-
-  // -----------------------------
-  // Static table-driven mappings
-  // -----------------------------
-
   const mapping = [...BASE_MAPPINGS, ...EXTRA_MAPPINGS].find((m) => m.unix === cmd);
-  if (!mapping) return segment; // unknown command
-
+  if (!mapping) return segment;
   const flagTokens = earlyFlagTokens;
   const argTokens = earlyArgTokens;
-
   let psFlags = "";
   for (const flagTok of flagTokens) {
     const mapped = mapping.flagMap[flagTok];
-    if (mapped !== undefined) {
+    if (mapped !== void 0) {
       if (mapped) psFlags += " " + mapped;
     } else {
-      return segment; // unknown flag – abort translation
+      return segment;
     }
   }
-
   if (mapping.forceArgs && argTokens.length === 0) {
     return segment;
   }
-
-  // Strip quotes from arguments for most commands (but preserve for shell constructs)
-  const stripQuote = (s: string) => (s.startsWith("'") || s.startsWith("\"") ? s.slice(1, -1) : s);
+  const stripQuote = (s) => s.startsWith("'") || s.startsWith('"') ? s.slice(1, -1) : s;
   const processedArgTokens = argTokens.map(stripQuote);
-
   const psCommand = `${mapping.ps}${psFlags}`.trim();
   return smartJoinEnhanced([psCommand, ...processedArgTokens]);
-} 
+}
+
+// src/translate.ts
+console.log("src/translate.ts LOADED");
+var DYNAMIC_CMDS = [
+  "head",
+  "tail",
+  "wc",
+  "sleep",
+  "whoami",
+  "sed",
+  "awk",
+  "cut",
+  "tr",
+  "uniq",
+  "sort",
+  "find",
+  "xargs",
+  "echo",
+  "nl"
+];
+var SUPPORTED_COMMANDS = /* @__PURE__ */ new Set([...MAPPINGS.map((m) => m.unix), ...DYNAMIC_CMDS]);
+function lintCommand(cmd) {
+  const unsupported = [];
+  const suggestions = [];
+  const STATIC_ALLOWED_FLAGS = Object.fromEntries(
+    MAPPINGS.map((m) => [m.unix, new Set(Object.keys(m.flagMap))])
+  );
+  const DYNAMIC_ALLOWED_FLAGS = {
+    uniq: /* @__PURE__ */ new Set(["-c"]),
+    sort: /* @__PURE__ */ new Set(["-n"]),
+    cut: /* @__PURE__ */ new Set(["-d", "-f"]),
+    tr: /* @__PURE__ */ new Set([]),
+    find: /* @__PURE__ */ new Set(["-name", "-type", "-delete", "-exec"]),
+    xargs: /* @__PURE__ */ new Set(["-0"]),
+    sed: /* @__PURE__ */ new Set(["-n"])
+  };
+  const connectorParts = splitByConnectors(cmd).filter((p) => p !== "&&" && p !== "||");
+  for (const part of connectorParts) {
+    const pipeParts = splitByPipe(part);
+    for (const seg of pipeParts) {
+      const trimmed = seg.trim();
+      if (!trimmed) continue;
+      if (trimmed.startsWith("(") || trimmed.startsWith("{")) continue;
+      const tokens = tagTokenRoles(tokenizeWithPos(trimmed));
+      const cmdTok = tokens.find((t) => t.role === "cmd");
+      if (!cmdTok) continue;
+      const c = cmdTok.value;
+      if (!SUPPORTED_COMMANDS.has(c)) {
+        unsupported.push(`${trimmed} (unknown command: '${c}')`);
+        const cmdSuggestions = getCommandSuggestions(c);
+        if (cmdSuggestions.length > 0) {
+          suggestions.push(`  Did you mean: ${cmdSuggestions.join(", ")}?`);
+        }
+        continue;
+      }
+      const allowedFlags = STATIC_ALLOWED_FLAGS[c] ?? DYNAMIC_ALLOWED_FLAGS[c];
+      if (allowedFlags) {
+        const flagToks = tokens.filter((t) => t.role === "flag");
+        for (const fTok of flagToks) {
+          if (!allowedFlags.has(fTok.value)) {
+            unsupported.push(`${trimmed} (unsupported flag: '${fTok.value}' for '${c}')`);
+            const flagSuggestions = getFlagSuggestions(c, fTok.value, allowedFlags);
+            if (flagSuggestions.length > 0) {
+              suggestions.push(`  Available flags for '${c}': ${Array.from(allowedFlags).join(", ")}`);
+            }
+            break;
+          }
+        }
+      }
+    }
+  }
+  return { unsupported, suggestions };
+}
+function getCommandSuggestions(unknownCmd) {
+  const allCommands = [...MAPPINGS.map((m) => m.unix), ...DYNAMIC_CMDS];
+  const suggestions = [];
+  for (const cmd of allCommands) {
+    if (cmd.length >= 3 && (cmd.includes(unknownCmd) || unknownCmd.includes(cmd) || Math.abs(cmd.length - unknownCmd.length) <= 2)) {
+      suggestions.push(cmd);
+      if (suggestions.length >= 3) break;
+    }
+  }
+  return suggestions;
+}
+function getFlagSuggestions(cmd, unknownFlag, allowedFlags) {
+  const suggestions = [];
+  for (const flag of Array.from(allowedFlags)) {
+    if (flag.includes(unknownFlag) || unknownFlag.includes(flag)) {
+      suggestions.push(flag);
+      if (suggestions.length >= 3) break;
+    }
+  }
+  return suggestions;
+}
+var _a;
+var OVERRIDE_SHELL = (_a = process.env.SMARTSH_SHELL) == null ? void 0 : _a.toLowerCase();
+var DEBUG = process.env.SMARTSH_DEBUG === "1" || process.env.SMARTSH_DEBUG === "true";
+function debugLog(...args) {
+  if (DEBUG) {
+    console.log("[smartsh/sm debug]", ...args);
+  }
+}
+function getPowerShellVersionSync() {
+  const { execSync } = __require("child_process");
+  const candidates = ["powershell", "pwsh"];
+  for (const cmd of candidates) {
+    try {
+      const output = execSync(
+        `${cmd} -NoProfile -Command "$PSVersionTable.PSVersion.Major"`,
+        {
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "ignore"],
+          windowsHide: true,
+          timeout: 3e3
+        }
+      ).trim();
+      const major = parseInt(output, 10);
+      if (!isNaN(major)) {
+        debugLog(`Detected PowerShell version ${major} via '${cmd}'.`);
+        return major;
+      }
+    } catch (err) {
+      if ((err == null ? void 0 : err.code) !== "ENOENT" && DEBUG) {
+        console.error("[smartsh debug]", `Failed to probe '${cmd}':`, err.message ?? err);
+      }
+    }
+  }
+  debugLog("Unable to determine PowerShell version.");
+  return null;
+}
+function detectShell() {
+  var _a2, _b;
+  if (OVERRIDE_SHELL) {
+    debugLog(`Using shell override: ${OVERRIDE_SHELL}`);
+    if (OVERRIDE_SHELL === "powershell") {
+      const version = getPowerShellVersionSync();
+      return {
+        type: "powershell",
+        version,
+        supportsConditionalConnectors: version !== null && version >= 7
+      };
+    }
+    return {
+      type: OVERRIDE_SHELL,
+      supportsConditionalConnectors: true
+    };
+  }
+  if (process.platform === "win32") {
+    const isCmd = Boolean(process.env.PROMPT) && !process.env.PSModulePath;
+    if (isCmd) {
+      debugLog("Detected CMD via PROMPT env.");
+      return { type: "cmd", supportsConditionalConnectors: true };
+    }
+    if (process.env.PSModulePath) {
+      const version2 = getPowerShellVersionSync();
+      return {
+        type: "powershell",
+        version: version2,
+        supportsConditionalConnectors: version2 !== null && version2 >= 7
+      };
+    }
+    const comspec = (_a2 = process.env.ComSpec) == null ? void 0 : _a2.toLowerCase();
+    if (comspec == null ? void 0 : comspec.includes("cmd.exe")) {
+      debugLog("Detected CMD via ComSpec path.");
+      return { type: "cmd", supportsConditionalConnectors: true };
+    }
+    const shellEnv = (_b = process.env.SHELL) == null ? void 0 : _b.toLowerCase();
+    if (shellEnv && shellEnv.includes("bash")) {
+      debugLog("Detected Bash on Windows via SHELL env:", shellEnv);
+      return { type: "bash", supportsConditionalConnectors: true };
+    }
+    const version = getPowerShellVersionSync();
+    return {
+      type: "powershell",
+      version,
+      supportsConditionalConnectors: version !== null && version >= 7
+    };
+  }
+  const shellPath = process.env.SHELL;
+  if (shellPath) {
+    debugLog(`Detected Unix shell via SHELL env: ${shellPath}`);
+  }
+  return { type: "bash", supportsConditionalConnectors: true };
+}
+function translateCommand(command, shell) {
+  if (shell.type === "powershell") {
+    const parts = splitByConnectors(command).map((part) => {
+      if (part === "&&" || part === "||") return part;
+      const pipeParts = splitByPipe(part);
+      const translatedPipeParts = pipeParts.map(translateSingleUnixSegment);
+      return translatedPipeParts.join(" | ");
+    });
+    const unixTranslated = parts.join(" ");
+    const finalResult = handleBacktickEscapedOperators(unixTranslated);
+    if (shell.supportsConditionalConnectors) {
+      return finalResult;
+    }
+    return translateForLegacyPowerShell(finalResult);
+  }
+  return command;
+}
+function handleBacktickEscapedOperators(cmd) {
+  return cmd.replace(/`&`&/g, "'&&'").replace(/`\|`\|/g, "'||'");
+}
+function splitByConnectors(cmd) {
+  const parts = [];
+  const tokens = tokenizeWithPos(cmd);
+  let segmentStart = 0;
+  let parenDepth = 0;
+  let braceDepth = 0;
+  for (const t of tokens) {
+    if (t.value === "(") parenDepth++;
+    else if (t.value === ")") parenDepth = Math.max(0, parenDepth - 1);
+    else if (t.value === "{") braceDepth++;
+    else if (t.value === "}") braceDepth = Math.max(0, braceDepth - 1);
+    if (parenDepth === 0 && braceDepth === 0 && (t.value === "&&" || t.value === "||")) {
+      const chunk = cmd.slice(segmentStart, t.start).trim();
+      if (chunk) parts.push(chunk);
+      parts.push(t.value);
+      segmentStart = t.end;
+    }
+  }
+  const last = cmd.slice(segmentStart).trim();
+  if (last) parts.push(last);
+  return parts;
+}
+function splitByPipe(segment) {
+  const tokens = tokenizeWithPos(segment);
+  const parts = [];
+  let lastPos = 0;
+  let parenDepth = 0;
+  let braceDepth = 0;
+  for (const t of tokens) {
+    if (t.value === "(") {
+      parenDepth++;
+    } else if (t.value === ")") {
+      parenDepth = Math.max(0, parenDepth - 1);
+    } else if (t.value === "{") {
+      braceDepth++;
+    } else if (t.value === "}") {
+      braceDepth = Math.max(0, braceDepth - 1);
+    }
+    if (parenDepth === 0 && braceDepth === 0 && t.value === "|") {
+      const chunk = segment.slice(lastPos, t.start).trim();
+      if (chunk) parts.push(chunk);
+      lastPos = t.end;
+    }
+  }
+  const tail = segment.slice(lastPos).trim();
+  if (tail) parts.push(tail);
+  return parts;
+}
+function translateForLegacyPowerShell(command) {
+  const tokens = splitByConnectors(command);
+  if (tokens.length === 0) return command;
+  let script = tokens[0];
+  for (let i = 1; i < tokens.length; i += 2) {
+    const connector = tokens[i];
+    const nextCmd = tokens[i + 1];
+    if (connector === "&&") {
+      script += `; if ($?) { ${nextCmd} }`;
+    } else {
+      script += `; if (-not $?) { ${nextCmd} }`;
+    }
+  }
+  return script;
+}
+export {
+  detectShell,
+  lintCommand,
+  translateCommand
+};

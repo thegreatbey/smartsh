@@ -8,8 +8,20 @@ const TOOL_NAME = "smartsh";
 
 function runInShell(shellInfo: ReturnType<typeof detectShell>, command: string): void {
   if (shellInfo.type === "powershell") {
-    // Decide executable based on version (pwsh for 7+, powershell for legacy)
-    const exe = shellInfo.version && shellInfo.version >= 7 ? "pwsh" : "powershell";
+    // Be conservative: only use pwsh if we're certain it's available
+    // Most Windows users have traditional powershell, not pwsh
+    let exe = "powershell"; // Default to traditional PowerShell
+    if (shellInfo.version && shellInfo.version >= 7) {
+      // Try pwsh first, fallback to powershell if not available
+      try {
+        require("child_process").execSync("pwsh -Version", { stdio: "ignore" });
+        exe = "pwsh";
+      } catch {
+        // pwsh not available, stick with powershell
+        exe = "powershell";
+      }
+    }
+    
     const child = spawn(exe, ["-NoProfile", "-Command", command], {
       stdio: "inherit",
     });
@@ -55,6 +67,7 @@ function main() {
   // Flag parsing (very simple)
   // ---------------------------
   let translateOnly = false;
+  let dryRun = false;
   const cmdParts: string[] = [];
 
   let i = 0;
@@ -65,6 +78,10 @@ function main() {
     const arg = rawArgs[i];
     if (arg === "--translate-only" || arg === "-t") {
       translateOnly = true;
+      continue;
+    }
+    if (arg === "--dry-run") {
+      dryRun = true;
       continue;
     }
     if (arg === "--lint" || arg === "-l") {
@@ -121,11 +138,17 @@ function main() {
     for (const seg of res.unsupported) {
       console.error("  -", seg);
     }
+    if (res.suggestions.length > 0) {
+      console.error("\n💡 Suggestions:");
+      for (const suggestion of res.suggestions) {
+        console.error(suggestion);
+      }
+    }
     process.exit(1);
   }
 
   const commandToRun = translateCommand(originalCommand, shellInfo);
-  if (translateOnly) {
+  if (translateOnly || dryRun) {
     console.log(commandToRun);
     return;
   }

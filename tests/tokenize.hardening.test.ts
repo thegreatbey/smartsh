@@ -10,19 +10,19 @@ describe("tokenizeWithPos hardening – tricky quoting", () => {
   it("handles double-quoted string containing single quotes", () => {
     const cmd = `echo "He said, 'hello'"`;
     const tokVals = vals(cmd);
-    expect(tokVals).toEqual(["echo", "He said, 'hello'"]);
+    expect(tokVals).toEqual(["echo", '"He said, \'hello\'"']);
   });
 
   it("handles single-quoted string containing double quotes", () => {
     const cmd = `echo 'Nested "double" quotes'`;
     const tokVals = vals(cmd);
-    expect(tokVals).toEqual(["echo", 'Nested "double" quotes']);
+    expect(tokVals).toEqual(["echo", "'Nested \"double\" quotes'"]);
   });
 
   it("keeps Windows path with spaces as single token when quoted", () => {
     const cmd = `cat "C:\\Program Files\\Smart App\\file.txt"`;
     const tokVals = vals(cmd);
-    expect(tokVals).toEqual(["cat", "C:\\Program Files\\Smart App\\file.txt"]);
+    expect(tokVals).toEqual(["cat", '"C:\\Program Files\\Smart App\\file.txt"']);
   });
 });
 

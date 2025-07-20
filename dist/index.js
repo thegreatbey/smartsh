@@ -1,20 +1,9 @@
 #!/usr/bin/env node
+"use strict";
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
-  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
-}) : x)(function(x) {
-  if (typeof require !== "undefined") return require.apply(this, arguments);
-  throw Error('Dynamic require of "' + x + '" is not supported');
-});
-var __esm = (fn, res) => function __init() {
-  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
-};
-var __commonJS = (cb, mod) => function __require2() {
-  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
-};
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
@@ -28,6 +17,15 @@ var __copyProps = (to, from, except, desc) => {
   return to;
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+// src/index.ts
+var src_exports = {};
+__export(src_exports, {
+  detectShell: () => detectShell,
+  lintCommand: () => lintCommand,
+  translateCommand: () => translateCommand
+});
+module.exports = __toCommonJS(src_exports);
 
 // src/tokenize.ts
 function tokenizeWithPos(cmd) {
@@ -114,6 +112,7 @@ function extractOperator(cmd, pos) {
   }
   return cmd[pos];
 }
+var OPS = /* @__PURE__ */ new Set(["&&", "||", "|", ";", "|&"]);
 function isRedirectionToken(val) {
   return /^(\d*>>?&?\d*|[<>]{1,2}|&>?)$/.test(val);
 }
@@ -143,21 +142,1068 @@ function tagTokenRoles(tokens) {
   }
   return out;
 }
-var OPS;
-var init_tokenize = __esm({
-  "src/tokenize.ts"() {
-    "use strict";
-    OPS = /* @__PURE__ */ new Set(["&&", "||", "|", ";", "|&"]);
-  }
-});
 
 // src/unixMappings.ts
-function addExtraMappings(maps) {
-  for (const m of maps) {
-    if (BASE_MAPPINGS.some((x) => x.unix === m.unix) || EXTRA_MAPPINGS.some((x) => x.unix === m.unix)) continue;
-    EXTRA_MAPPINGS.push(m);
+var RM_MAPPING = {
+  unix: "rm",
+  ps: "Remove-Item",
+  flagMap: {
+    "-rf": "-Recurse -Force",
+    "-fr": "-Recurse -Force",
+    "-r": "-Recurse",
+    "-f": "-Force"
+  },
+  forceArgs: true
+};
+var MKDIR_MAPPING = {
+  unix: "mkdir",
+  ps: "New-Item -ItemType Directory",
+  flagMap: {
+    "-p": "-Force"
   }
-}
+};
+var LS_MAPPING = {
+  unix: "ls",
+  ps: "Get-ChildItem",
+  flagMap: {
+    "-la": "-Force",
+    "-al": "-Force",
+    "-a": "-Force",
+    "-l": ""
+  }
+};
+var CP_MAPPING = {
+  unix: "cp",
+  ps: "Copy-Item",
+  flagMap: {
+    "-r": "-Recurse",
+    "-R": "-Recurse",
+    "-f": "-Force",
+    "-rf": "-Recurse -Force",
+    "-fr": "-Recurse -Force"
+  },
+  forceArgs: true
+};
+var MV_MAPPING = {
+  unix: "mv",
+  ps: "Move-Item",
+  flagMap: {},
+  forceArgs: true
+};
+var TOUCH_MAPPING = {
+  unix: "touch",
+  ps: "New-Item -ItemType File",
+  flagMap: {},
+  forceArgs: true
+};
+var GREP_MAPPING = {
+  unix: "grep",
+  ps: "Select-String",
+  flagMap: {
+    "-i": "-CaseSensitive:$false",
+    "-n": "-LineNumber",
+    "-in": "-CaseSensitive:$false -LineNumber",
+    "-ni": "-CaseSensitive:$false -LineNumber",
+    "-v": "-NotMatch",
+    "-iv": "-CaseSensitive:$false -NotMatch",
+    "-vn": "-CaseSensitive:$false -LineNumber",
+    "-vni": "-CaseSensitive:$false -NotMatch -LineNumber",
+    "-q": "-Quiet",
+    "-iq": "-CaseSensitive:$false -Quiet",
+    "-qi": "-CaseSensitive:$false -Quiet",
+    "-E": "",
+    "-F": "-SimpleMatch"
+  },
+  forceArgs: true
+};
+var CAT_MAPPING = {
+  unix: "cat",
+  ps: "Get-Content",
+  flagMap: {},
+  forceArgs: true
+};
+var WHICH_MAPPING = {
+  unix: "which",
+  ps: "Get-Command",
+  flagMap: {},
+  forceArgs: true
+};
+var SORT_MAPPING = {
+  unix: "sort",
+  ps: "Sort-Object",
+  flagMap: {},
+  forceArgs: false
+};
+var UNIQ_MAPPING = {
+  unix: "uniq",
+  ps: "Select-Object -Unique",
+  flagMap: {},
+  forceArgs: false
+};
+var FIND_MAPPING = {
+  unix: "find",
+  ps: "Get-ChildItem -Recurse",
+  flagMap: {
+    "-name": "-Filter",
+    // maps -name pattern
+    "-type": "",
+    // we ignore -type for now
+    "-delete": ""
+    // handled specially in translation logic
+  },
+  forceArgs: true
+};
+var PWD_MAPPING = {
+  unix: "pwd",
+  ps: "Get-Location",
+  flagMap: {},
+  forceArgs: false
+};
+var DATE_MAPPING = {
+  unix: "date",
+  ps: "Get-Date",
+  flagMap: {},
+  forceArgs: false
+};
+var CLEAR_MAPPING = {
+  unix: "clear",
+  ps: "Clear-Host",
+  flagMap: {},
+  forceArgs: false
+};
+var PS_MAPPING = {
+  unix: "ps",
+  ps: "Get-Process",
+  flagMap: {},
+  forceArgs: false
+};
+var KILL_MAPPING = {
+  unix: "kill",
+  ps: "Stop-Process",
+  flagMap: {
+    "-9": "-Force"
+  },
+  forceArgs: true
+};
+var DF_MAPPING = {
+  unix: "df",
+  ps: "Get-PSDrive",
+  flagMap: {
+    "-h": ""
+    // human-readable not needed
+  },
+  forceArgs: false
+};
+var HOSTNAME_MAPPING = {
+  unix: "hostname",
+  ps: "$env:COMPUTERNAME",
+  flagMap: {},
+  forceArgs: false
+};
+var DIRNAME_MAPPING = {
+  unix: "dirname",
+  ps: "Split-Path -Parent",
+  flagMap: {},
+  forceArgs: true
+};
+var BASENAME_MAPPING = {
+  unix: "basename",
+  ps: "Split-Path -Leaf",
+  flagMap: {},
+  forceArgs: true
+};
+var TEE_MAPPING = {
+  unix: "tee",
+  ps: "Tee-Object -FilePath",
+  flagMap: {
+    "-a": "-Append"
+  },
+  forceArgs: true
+};
+var TAR_MAPPING = {
+  unix: "tar",
+  ps: "tar",
+  // Use native tar if available, otherwise preserve
+  flagMap: {
+    "-c": "-c",
+    "-x": "-x",
+    "-f": "-f",
+    "-z": "-z",
+    "-j": "-j",
+    "-v": "-v",
+    "-t": "-t"
+  },
+  forceArgs: true
+};
+var CURL_MAPPING = {
+  unix: "curl",
+  ps: "Invoke-WebRequest",
+  flagMap: {
+    "-o": "-OutFile",
+    "-O": "-OutFile",
+    "-s": "-UseBasicParsing",
+    "-L": "-MaximumRedirection",
+    "-H": "-Headers",
+    "-d": "-Body",
+    "-X": "-Method",
+    "-k": "-SkipCertificateCheck"
+  },
+  forceArgs: true
+};
+var WGET_MAPPING = {
+  unix: "wget",
+  ps: "Invoke-WebRequest",
+  flagMap: {
+    "-O": "-OutFile",
+    "-o": "-OutFile",
+    "-q": "-UseBasicParsing",
+    "-c": "-Resume",
+    "-r": "-Recurse",
+    "-np": "-NoParent",
+    "-k": "-ConvertLinks"
+  },
+  forceArgs: true
+};
+var DIFF_MAPPING = {
+  unix: "diff",
+  ps: "Compare-Object",
+  flagMap: {
+    "-u": "-Unified",
+    "-r": "-Recurse",
+    "-i": "-CaseInsensitive",
+    "-w": "-IgnoreWhiteSpace",
+    "-B": "-IgnoreBlankLines"
+  },
+  forceArgs: true
+};
+var SPLIT_MAPPING = {
+  unix: "split",
+  ps: "Split-Content",
+  flagMap: {
+    "-l": "-LineCount",
+    "-b": "-ByteCount",
+    "-n": "-Number"
+  },
+  forceArgs: true
+};
+var PASTE_MAPPING = {
+  unix: "paste",
+  ps: "Join-Object",
+  flagMap: {
+    "-d": "-Delimiter",
+    "-s": "-Serial"
+  },
+  forceArgs: true
+};
+var RSYNC_MAPPING = {
+  unix: "rsync",
+  ps: "Copy-Item",
+  flagMap: {
+    "-a": "-Recurse",
+    // archive mode (recursive + preserve attributes)
+    "-v": "-Verbose",
+    // verbose
+    "-r": "-Recurse",
+    // recursive
+    "-u": "-Force",
+    // update (skip newer files)
+    "-n": "-WhatIf",
+    // dry run
+    "-P": "-PassThru"
+    // progress + partial
+  },
+  forceArgs: true
+};
+var CHMOD_MAPPING = {
+  unix: "chmod",
+  ps: "icacls",
+  flagMap: {
+    "-R": "/T",
+    // recursive
+    "-v": "/Q"
+    // verbose (quiet in icacls)
+  },
+  forceArgs: true
+};
+var CHOWN_MAPPING = {
+  unix: "chown",
+  ps: "icacls",
+  flagMap: {
+    "-R": "/T",
+    // recursive
+    "-v": "/Q"
+    // verbose (quiet in icacls)
+  },
+  forceArgs: true
+};
+var LN_MAPPING = {
+  unix: "ln",
+  ps: "New-Item",
+  flagMap: {
+    "-s": "-ItemType SymbolicLink",
+    // symbolic link
+    "-f": "-Force",
+    // force
+    "-v": "-Verbose"
+    // verbose
+  },
+  forceArgs: true
+};
+var DU_MAPPING = {
+  unix: "du",
+  ps: "Get-ChildItem",
+  flagMap: {
+    "-h": "-Recurse",
+    // human readable (handled in translation)
+    "-s": "-Recurse",
+    // summarize
+    "-a": "-Recurse",
+    // all files
+    "-c": "-Recurse"
+    // total
+  },
+  forceArgs: true
+};
+var SYSTEMCTL_MAPPING = {
+  unix: "systemctl",
+  ps: "Get-Service",
+  // default fallback
+  flagMap: {
+    "start": "Start-Service",
+    "stop": "Stop-Service",
+    "restart": "Restart-Service",
+    "status": "Get-Service",
+    "enable": "Set-Service -StartupType Automatic",
+    "disable": "Set-Service -StartupType Disabled",
+    "reload": "Restart-Service"
+  },
+  forceArgs: true
+};
+var LESS_MAPPING = {
+  unix: "less",
+  ps: "Get-Content | Out-Host -Paging",
+  flagMap: {
+    "-N": "-LineNumber",
+    "-M": "",
+    // show more info (handled in translation)
+    "-R": ""
+    // raw control chars (handled in translation)
+  },
+  forceArgs: false
+};
+var MORE_MAPPING = {
+  unix: "more",
+  ps: "Get-Content | Out-Host -Paging",
+  flagMap: {
+    "-N": "-LineNumber",
+    "-c": "",
+    // clear screen (handled in translation)
+    "-p": ""
+    // pattern search (handled in translation)
+  },
+  forceArgs: false
+};
+var PING_MAPPING = {
+  unix: "ping",
+  ps: "Test-Connection",
+  flagMap: {
+    "-c": "-Count",
+    "-i": "-Interval",
+    "-t": "-TimeoutSeconds",
+    "-W": "-TimeoutSeconds",
+    "-s": "-BufferSize",
+    "-l": "-BufferSize"
+  },
+  forceArgs: true
+};
+var TOP_MAPPING = {
+  unix: "top",
+  ps: "Get-Process | Sort-Object CPU -Descending | Select-Object -First 20",
+  flagMap: {
+    "-n": "-First",
+    "-p": "-Id",
+    "-u": "-IncludeUserName"
+  },
+  forceArgs: false
+};
+var RMDIR_MAPPING = {
+  unix: "rmdir",
+  ps: "Remove-Item -Directory",
+  flagMap: {
+    "-p": "-Recurse",
+    "-v": "-Verbose"
+  },
+  forceArgs: true
+};
+var UPTIME_MAPPING = {
+  unix: "uptime",
+  ps: "(Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime",
+  flagMap: {},
+  forceArgs: false
+};
+var FREE_MAPPING = {
+  unix: "free",
+  ps: "Get-Counter '\\Memory\\Available MBytes' | Select-Object -ExpandProperty CounterSamples | Select-Object InstanceName,CookedValue",
+  flagMap: {
+    "-h": "",
+    // human readable (handled in translation)
+    "-m": ""
+    // MB format (handled in translation)
+  },
+  forceArgs: false
+};
+var NETSTAT_MAPPING = {
+  unix: "netstat",
+  ps: "Get-NetTCPConnection",
+  flagMap: {
+    "-t": "-State Listen",
+    "-u": "-State Listen",
+    "-l": "-State Listen",
+    "-n": "-State Listen",
+    "-a": "-State Listen",
+    "-p": "-State Listen"
+  },
+  forceArgs: false
+};
+var SSH_MAPPING = {
+  unix: "ssh",
+  ps: "ssh",
+  flagMap: {
+    "-p": "-p",
+    "-i": "-i",
+    "-o": "-o",
+    "-L": "-L",
+    "-D": "-D"
+  },
+  forceArgs: true
+};
+var GZIP_MAPPING = {
+  unix: "gzip",
+  ps: "Compress-Archive",
+  flagMap: {
+    "-d": "-DestinationPath",
+    "-r": "-Recurse",
+    "-f": "-Force",
+    "-v": "-Verbose"
+  },
+  forceArgs: false
+};
+var GUNZIP_MAPPING = {
+  unix: "gunzip",
+  ps: "Expand-Archive",
+  flagMap: {
+    "-f": "-Force",
+    "-v": "-Verbose",
+    "-l": "-ListOnly"
+  },
+  forceArgs: false
+};
+var JOBS_MAPPING = {
+  unix: "jobs",
+  ps: "Get-Job",
+  flagMap: {
+    "-l": "-IncludeChildJob",
+    "-p": "-Id",
+    "-r": "-State Running",
+    "-s": "-State Stopped"
+  },
+  forceArgs: false
+};
+var BG_MAPPING = {
+  unix: "bg",
+  ps: "Resume-Job",
+  flagMap: {},
+  forceArgs: false
+};
+var FG_MAPPING = {
+  unix: "fg",
+  ps: "Receive-Job",
+  flagMap: {},
+  forceArgs: false
+};
+var NICE_MAPPING = {
+  unix: "nice",
+  ps: "Start-Process",
+  flagMap: {
+    "-n": "-Priority"
+  },
+  forceArgs: true
+};
+var NOHUP_MAPPING = {
+  unix: "nohup",
+  ps: "Start-Process",
+  flagMap: {
+    "-n": "-NoNewWindow"
+  },
+  forceArgs: true
+};
+var CHGRP_MAPPING = {
+  unix: "chgrp",
+  ps: "icacls",
+  flagMap: {
+    "-R": "/T",
+    "-v": "/Q"
+  },
+  forceArgs: true
+};
+var UMASK_MAPPING = {
+  unix: "umask",
+  ps: "Get-ChildItem",
+  flagMap: {
+    "-S": ""
+  },
+  forceArgs: false
+};
+var MKTEMP_MAPPING = {
+  unix: "mktemp",
+  ps: "New-TemporaryFile",
+  flagMap: {
+    "-d": "",
+    "-u": ""
+  },
+  forceArgs: false
+};
+var REALPATH_MAPPING = {
+  unix: "realpath",
+  ps: "Resolve-Path",
+  flagMap: {
+    "-q": "-Quiet",
+    "-s": "-Relative"
+  },
+  forceArgs: true
+};
+var JOIN_MAPPING = {
+  unix: "join",
+  ps: "Join-Object",
+  flagMap: {
+    "-1": "-JoinProperty",
+    "-2": "-MergeProperty",
+    "-t": "-Delimiter"
+  },
+  forceArgs: true
+};
+var COMM_MAPPING = {
+  unix: "comm",
+  ps: "Compare-Object",
+  flagMap: {
+    "-1": "-IncludeEqual",
+    "-2": "-IncludeEqual",
+    "-3": "-IncludeEqual"
+  },
+  forceArgs: true
+};
+var EXPAND_MAPPING = {
+  unix: "expand",
+  ps: "Get-Content",
+  flagMap: {
+    "-t": "-TabSize",
+    "-i": "-Initial"
+  },
+  forceArgs: true
+};
+var UNEXPAND_MAPPING = {
+  unix: "unexpand",
+  ps: "Get-Content",
+  flagMap: {
+    "-a": "-All",
+    "-t": "-TabSize"
+  },
+  forceArgs: true
+};
+var FOLD_MAPPING = {
+  unix: "fold",
+  ps: "Get-Content",
+  flagMap: {
+    "-b": "-Bytes",
+    "-s": "-Spaces",
+    "-w": "-Width"
+  },
+  forceArgs: true
+};
+var FMT_MAPPING = {
+  unix: "fmt",
+  ps: "Get-Content",
+  flagMap: {
+    "-w": "-Width",
+    "-g": "-Goal",
+    "-p": "-Prefix"
+  },
+  forceArgs: true
+};
+var TELNET_MAPPING = {
+  unix: "telnet",
+  ps: "Test-NetConnection",
+  flagMap: {
+    "-p": "-Port",
+    "-l": "-LocalAddress"
+  },
+  forceArgs: true
+};
+var NC_MAPPING = {
+  unix: "nc",
+  ps: "Test-NetConnection",
+  flagMap: {
+    "-v": "-Verbose",
+    "-w": "-TimeoutSeconds",
+    "-l": "-Listen",
+    "-p": "-Port"
+  },
+  forceArgs: true
+};
+var DIG_MAPPING = {
+  unix: "dig",
+  ps: "Resolve-DnsName",
+  flagMap: {
+    "+short": "-Type A",
+    "+trace": "-Type NS",
+    "-x": "-Type PTR"
+  },
+  forceArgs: true
+};
+var NSLOOKUP_MAPPING = {
+  unix: "nslookup",
+  ps: "Resolve-DnsName",
+  flagMap: {
+    "-type": "-Type",
+    "-port": "-Port"
+  },
+  forceArgs: true
+};
+var MAKE_MAPPING = {
+  unix: "make",
+  ps: "make",
+  flagMap: {
+    "-j": "-j",
+    "-f": "-f",
+    "-C": "-C",
+    "clean": "clean",
+    "install": "install"
+  },
+  forceArgs: false
+};
+var GCC_MAPPING = {
+  unix: "gcc",
+  ps: "gcc",
+  flagMap: {
+    "-o": "-o",
+    "-c": "-c",
+    "-g": "-g",
+    "-Wall": "-Wall",
+    "-std": "-std"
+  },
+  forceArgs: true
+};
+var GPP_MAPPING = {
+  unix: "g++",
+  ps: "g++",
+  flagMap: {
+    "-o": "-o",
+    "-c": "-c",
+    "-g": "-g",
+    "-Wall": "-Wall",
+    "-std": "-std"
+  },
+  forceArgs: true
+};
+var GIT_MAPPING = {
+  unix: "git",
+  ps: "git",
+  flagMap: {
+    "clone": "clone",
+    "pull": "pull",
+    "push": "push",
+    "commit": "commit",
+    "status": "status",
+    "log": "log",
+    "branch": "branch",
+    "checkout": "checkout"
+  },
+  forceArgs: false
+};
+var APT_MAPPING = {
+  unix: "apt",
+  ps: "winget",
+  flagMap: {
+    "install": "install",
+    "remove": "uninstall",
+    "update": "upgrade",
+    "upgrade": "upgrade",
+    "search": "search",
+    "list": "list"
+  },
+  forceArgs: false
+};
+var APT_GET_MAPPING = {
+  unix: "apt-get",
+  ps: "winget",
+  flagMap: {
+    "install": "install",
+    "remove": "uninstall",
+    "update": "upgrade",
+    "upgrade": "upgrade",
+    "search": "search",
+    "list": "list"
+  },
+  forceArgs: false
+};
+var YUM_MAPPING = {
+  unix: "yum",
+  ps: "winget",
+  flagMap: {
+    "install": "install",
+    "remove": "uninstall",
+    "update": "upgrade",
+    "upgrade": "upgrade",
+    "search": "search",
+    "list": "list"
+  },
+  forceArgs: false
+};
+var DNF_MAPPING = {
+  unix: "dnf",
+  ps: "winget",
+  flagMap: {
+    "install": "install",
+    "remove": "uninstall",
+    "update": "upgrade",
+    "upgrade": "upgrade",
+    "search": "search",
+    "list": "list"
+  },
+  forceArgs: false
+};
+var BREW_MAPPING = {
+  unix: "brew",
+  ps: "winget",
+  flagMap: {
+    "install": "install",
+    "uninstall": "uninstall",
+    "update": "upgrade",
+    "upgrade": "upgrade",
+    "search": "search",
+    "list": "list"
+  },
+  forceArgs: false
+};
+var UNAME_MAPPING = {
+  unix: "uname",
+  ps: "Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, TotalPhysicalMemory",
+  flagMap: {
+    "-a": "-a",
+    "-r": "-r",
+    "-m": "-m",
+    "-n": "-n",
+    "-p": "-p",
+    "-s": "-s"
+  },
+  forceArgs: false
+};
+var ID_MAPPING = {
+  unix: "id",
+  ps: "Get-Process -Id $PID | Select-Object ProcessName, Id, UserName",
+  flagMap: {
+    "-u": "-u",
+    "-g": "-g",
+    "-G": "-G",
+    "-n": "-n",
+    "-r": "-r"
+  },
+  forceArgs: false
+};
+var GROUPS_MAPPING = {
+  unix: "groups",
+  ps: "Get-LocalGroup | Select-Object Name, Description",
+  flagMap: {},
+  forceArgs: false
+};
+var WHO_MAPPING = {
+  unix: "who",
+  ps: "Get-Process | Where-Object {$_.ProcessName -like '*explorer*' -or $_.ProcessName -like '*winlogon*'} | Select-Object ProcessName, Id, UserName",
+  flagMap: {
+    "-a": "-a",
+    "-b": "-b",
+    "-d": "-d",
+    "-H": "-H",
+    "-i": "-i",
+    "-l": "-l",
+    "-p": "-p",
+    "-r": "-r",
+    "-t": "-t",
+    "-u": "-u"
+  },
+  forceArgs: false
+};
+var W_MAPPING = {
+  unix: "w",
+  ps: "Get-Process | Where-Object {$_.ProcessName -like '*explorer*' -or $_.ProcessName -like '*winlogon*'} | Select-Object ProcessName, Id, UserName, CPU, WorkingSet",
+  flagMap: {
+    "hide": "-h",
+    "noheader": "-s",
+    "short": "-s",
+    "users": "-u"
+  },
+  forceArgs: false
+};
+var REV_MAPPING = {
+  unix: "rev",
+  ps: "Get-Content $args | ForEach-Object { [string]::Join('', ($_.ToCharArray() | Sort-Object -Descending)) }",
+  flagMap: {},
+  forceArgs: false
+};
+var TAC_MAPPING = {
+  unix: "tac",
+  ps: "Get-Content $args | Sort-Object -Descending",
+  flagMap: {
+    "before": "-b",
+    "regex": "-r",
+    "separator": "-s"
+  },
+  forceArgs: false
+};
+var COLUMN_MAPPING = {
+  unix: "column",
+  ps: "Get-Content $args | Format-Table -AutoSize",
+  flagMap: {
+    "separator": "-s",
+    "table": "-t",
+    "width": "-w"
+  },
+  forceArgs: false
+};
+var PR_MAPPING = {
+  unix: "pr",
+  ps: "Get-Content $args | Format-List",
+  flagMap: {
+    "columns": "-c",
+    "double": "-d",
+    "formfeed": "-f",
+    "header": "-h",
+    "length": "-l",
+    "merge": "-m",
+    "number": "-n",
+    "output": "-o",
+    "page": "-p",
+    "separator": "-s",
+    "width": "-w"
+  },
+  forceArgs: false
+};
+var CSPLIT_MAPPING = {
+  unix: "csplit",
+  ps: 'Get-Content $args | ForEach-Object { if ($_ -match $pattern) { $i++; Set-Content "split$i.txt" -Value $_ } }',
+  flagMap: {
+    "prefix": "-f",
+    "digits": "-n",
+    "keep": "-k",
+    "quiet": "-q",
+    "suppress": "-s"
+  },
+  forceArgs: false
+};
+var TSORT_MAPPING = {
+  unix: "tsort",
+  ps: "Get-Content $args | Sort-Object",
+  flagMap: {},
+  forceArgs: false
+};
+var SHUTDOWN_MAPPING = {
+  unix: "shutdown",
+  ps: "Stop-Computer",
+  flagMap: {
+    "halt": "-h",
+    "poweroff": "-P",
+    "reboot": "-r",
+    "cancel": "-c",
+    "time": "-t"
+  },
+  forceArgs: false
+};
+var REBOOT_MAPPING = {
+  unix: "reboot",
+  ps: "Restart-Computer",
+  flagMap: {
+    "force": "-f",
+    "now": "-n"
+  },
+  forceArgs: false
+};
+var HALT_MAPPING = {
+  unix: "halt",
+  ps: "Stop-Computer -Force",
+  flagMap: {
+    "force": "-f",
+    "poweroff": "-p",
+    "reboot": "-r"
+  },
+  forceArgs: false
+};
+var POWEROFF_MAPPING = {
+  unix: "poweroff",
+  ps: "Stop-Computer -Force",
+  flagMap: {
+    "force": "-f",
+    "halt": "-h",
+    "reboot": "-r"
+  },
+  forceArgs: false
+};
+var USERADD_MAPPING = {
+  unix: "useradd",
+  ps: "New-LocalUser",
+  flagMap: {
+    "comment": "-c",
+    "home": "-d",
+    "expire": "-e",
+    "gecos": "-g",
+    "groups": "-G",
+    "system": "-r",
+    "shell": "-s",
+    "uid": "-u"
+  },
+  forceArgs: false
+};
+var USERDEL_MAPPING = {
+  unix: "userdel",
+  ps: "Remove-LocalUser",
+  flagMap: {
+    "force": "-f",
+    "remove": "-r"
+  },
+  forceArgs: false
+};
+var PASSWD_MAPPING = {
+  unix: "passwd",
+  ps: "Set-LocalUser -Password (Read-Host -AsSecureString 'Enter new password')",
+  flagMap: {
+    "delete": "-d",
+    "expire": "-e",
+    "force": "-f",
+    "lock": "-l",
+    "unlock": "-u"
+  },
+  forceArgs: false
+};
+var SU_MAPPING = {
+  unix: "su",
+  ps: "Start-Process powershell -Verb RunAs",
+  flagMap: {
+    "command": "-c",
+    "login": "-l",
+    "preserve": "-p",
+    "shell": "-s"
+  },
+  forceArgs: false
+};
+var SUDO_MAPPING = {
+  unix: "sudo",
+  ps: "Start-Process powershell -Verb RunAs -ArgumentList",
+  flagMap: {
+    "command": "-c",
+    "login": "-l",
+    "preserve": "-p",
+    "shell": "-s",
+    "user": "-u",
+    "group": "-g"
+  },
+  forceArgs: true
+};
+var BASE_MAPPINGS = [
+  RM_MAPPING,
+  MKDIR_MAPPING,
+  LS_MAPPING,
+  CP_MAPPING,
+  MV_MAPPING,
+  TOUCH_MAPPING,
+  GREP_MAPPING,
+  CAT_MAPPING,
+  WHICH_MAPPING,
+  SORT_MAPPING,
+  UNIQ_MAPPING,
+  FIND_MAPPING,
+  PWD_MAPPING,
+  DATE_MAPPING,
+  CLEAR_MAPPING,
+  PS_MAPPING,
+  KILL_MAPPING,
+  DF_MAPPING,
+  HOSTNAME_MAPPING,
+  DIRNAME_MAPPING,
+  BASENAME_MAPPING,
+  TEE_MAPPING,
+  TAR_MAPPING,
+  CURL_MAPPING,
+  WGET_MAPPING,
+  DIFF_MAPPING,
+  SPLIT_MAPPING,
+  PASTE_MAPPING,
+  RSYNC_MAPPING,
+  CHMOD_MAPPING,
+  CHOWN_MAPPING,
+  LN_MAPPING,
+  DU_MAPPING,
+  SYSTEMCTL_MAPPING,
+  LESS_MAPPING,
+  MORE_MAPPING,
+  PING_MAPPING,
+  TOP_MAPPING,
+  RMDIR_MAPPING,
+  UPTIME_MAPPING,
+  FREE_MAPPING,
+  NETSTAT_MAPPING,
+  SSH_MAPPING,
+  GZIP_MAPPING,
+  GUNZIP_MAPPING,
+  JOBS_MAPPING,
+  BG_MAPPING,
+  FG_MAPPING,
+  NICE_MAPPING,
+  NOHUP_MAPPING,
+  CHGRP_MAPPING,
+  UMASK_MAPPING,
+  MKTEMP_MAPPING,
+  REALPATH_MAPPING,
+  JOIN_MAPPING,
+  COMM_MAPPING,
+  EXPAND_MAPPING,
+  UNEXPAND_MAPPING,
+  FOLD_MAPPING,
+  FMT_MAPPING,
+  TELNET_MAPPING,
+  NC_MAPPING,
+  DIG_MAPPING,
+  NSLOOKUP_MAPPING,
+  MAKE_MAPPING,
+  GCC_MAPPING,
+  GPP_MAPPING,
+  GIT_MAPPING,
+  APT_MAPPING,
+  APT_GET_MAPPING,
+  YUM_MAPPING,
+  DNF_MAPPING,
+  BREW_MAPPING,
+  UNAME_MAPPING,
+  ID_MAPPING,
+  GROUPS_MAPPING,
+  WHO_MAPPING,
+  W_MAPPING,
+  REV_MAPPING,
+  TAC_MAPPING,
+  COLUMN_MAPPING,
+  PR_MAPPING,
+  CSPLIT_MAPPING,
+  TSORT_MAPPING,
+  SHUTDOWN_MAPPING,
+  REBOOT_MAPPING,
+  HALT_MAPPING,
+  POWEROFF_MAPPING,
+  USERADD_MAPPING,
+  USERDEL_MAPPING,
+  PASSWD_MAPPING,
+  SU_MAPPING,
+  SUDO_MAPPING
+];
+var EXTRA_MAPPINGS = [];
+var MAPPINGS = [...BASE_MAPPINGS, ...EXTRA_MAPPINGS];
 function smartJoin(tokens) {
   const merged = [];
   for (let i = 0; i < tokens.length; i++) {
@@ -305,6 +1351,7 @@ function mergeProcessSubs(tokens) {
   }
   return out;
 }
+var originalSmartJoin = smartJoin;
 function smartJoinEnhanced(tokens) {
   const mergedSubs = mergeProcessSubs(mergeHereDocs(mergeCommandSubs(mergeEnvExp(tokens))));
   const out = originalSmartJoin(mergedSubs);
@@ -786,1083 +1833,27 @@ function translateSingleUnixSegment(segment) {
   const psCommand = `${mapping.ps}${psFlags}`.trim();
   return smartJoinEnhanced([psCommand, ...processedArgTokens]);
 }
-var RM_MAPPING, MKDIR_MAPPING, LS_MAPPING, CP_MAPPING, MV_MAPPING, TOUCH_MAPPING, GREP_MAPPING, CAT_MAPPING, WHICH_MAPPING, SORT_MAPPING, UNIQ_MAPPING, FIND_MAPPING, PWD_MAPPING, DATE_MAPPING, CLEAR_MAPPING, PS_MAPPING, KILL_MAPPING, DF_MAPPING, HOSTNAME_MAPPING, DIRNAME_MAPPING, BASENAME_MAPPING, TEE_MAPPING, TAR_MAPPING, CURL_MAPPING, WGET_MAPPING, DIFF_MAPPING, SPLIT_MAPPING, PASTE_MAPPING, RSYNC_MAPPING, CHMOD_MAPPING, CHOWN_MAPPING, LN_MAPPING, DU_MAPPING, SYSTEMCTL_MAPPING, LESS_MAPPING, MORE_MAPPING, PING_MAPPING, TOP_MAPPING, RMDIR_MAPPING, UPTIME_MAPPING, FREE_MAPPING, NETSTAT_MAPPING, SSH_MAPPING, GZIP_MAPPING, GUNZIP_MAPPING, JOBS_MAPPING, BG_MAPPING, FG_MAPPING, NICE_MAPPING, NOHUP_MAPPING, CHGRP_MAPPING, UMASK_MAPPING, MKTEMP_MAPPING, REALPATH_MAPPING, JOIN_MAPPING, COMM_MAPPING, EXPAND_MAPPING, UNEXPAND_MAPPING, FOLD_MAPPING, FMT_MAPPING, TELNET_MAPPING, NC_MAPPING, DIG_MAPPING, NSLOOKUP_MAPPING, MAKE_MAPPING, GCC_MAPPING, GPP_MAPPING, GIT_MAPPING, APT_MAPPING, APT_GET_MAPPING, YUM_MAPPING, DNF_MAPPING, BREW_MAPPING, UNAME_MAPPING, ID_MAPPING, GROUPS_MAPPING, WHO_MAPPING, W_MAPPING, REV_MAPPING, TAC_MAPPING, COLUMN_MAPPING, PR_MAPPING, CSPLIT_MAPPING, TSORT_MAPPING, SHUTDOWN_MAPPING, REBOOT_MAPPING, HALT_MAPPING, POWEROFF_MAPPING, USERADD_MAPPING, USERDEL_MAPPING, PASSWD_MAPPING, SU_MAPPING, SUDO_MAPPING, BASE_MAPPINGS, EXTRA_MAPPINGS, MAPPINGS, originalSmartJoin;
-var init_unixMappings = __esm({
-  "src/unixMappings.ts"() {
-    "use strict";
-    init_tokenize();
-    RM_MAPPING = {
-      unix: "rm",
-      ps: "Remove-Item",
-      flagMap: {
-        "-rf": "-Recurse -Force",
-        "-fr": "-Recurse -Force",
-        "-r": "-Recurse",
-        "-f": "-Force"
-      },
-      forceArgs: true
-    };
-    MKDIR_MAPPING = {
-      unix: "mkdir",
-      ps: "New-Item -ItemType Directory",
-      flagMap: {
-        "-p": "-Force"
-      }
-    };
-    LS_MAPPING = {
-      unix: "ls",
-      ps: "Get-ChildItem",
-      flagMap: {
-        "-la": "-Force",
-        "-al": "-Force",
-        "-a": "-Force",
-        "-l": ""
-      }
-    };
-    CP_MAPPING = {
-      unix: "cp",
-      ps: "Copy-Item",
-      flagMap: {
-        "-r": "-Recurse",
-        "-R": "-Recurse",
-        "-f": "-Force",
-        "-rf": "-Recurse -Force",
-        "-fr": "-Recurse -Force"
-      },
-      forceArgs: true
-    };
-    MV_MAPPING = {
-      unix: "mv",
-      ps: "Move-Item",
-      flagMap: {},
-      forceArgs: true
-    };
-    TOUCH_MAPPING = {
-      unix: "touch",
-      ps: "New-Item -ItemType File",
-      flagMap: {},
-      forceArgs: true
-    };
-    GREP_MAPPING = {
-      unix: "grep",
-      ps: "Select-String",
-      flagMap: {
-        "-i": "-CaseSensitive:$false",
-        "-n": "-LineNumber",
-        "-in": "-CaseSensitive:$false -LineNumber",
-        "-ni": "-CaseSensitive:$false -LineNumber",
-        "-v": "-NotMatch",
-        "-iv": "-CaseSensitive:$false -NotMatch",
-        "-vn": "-CaseSensitive:$false -LineNumber",
-        "-vni": "-CaseSensitive:$false -NotMatch -LineNumber",
-        "-q": "-Quiet",
-        "-iq": "-CaseSensitive:$false -Quiet",
-        "-qi": "-CaseSensitive:$false -Quiet",
-        "-E": "",
-        "-F": "-SimpleMatch"
-      },
-      forceArgs: true
-    };
-    CAT_MAPPING = {
-      unix: "cat",
-      ps: "Get-Content",
-      flagMap: {},
-      forceArgs: true
-    };
-    WHICH_MAPPING = {
-      unix: "which",
-      ps: "Get-Command",
-      flagMap: {},
-      forceArgs: true
-    };
-    SORT_MAPPING = {
-      unix: "sort",
-      ps: "Sort-Object",
-      flagMap: {},
-      forceArgs: false
-    };
-    UNIQ_MAPPING = {
-      unix: "uniq",
-      ps: "Select-Object -Unique",
-      flagMap: {},
-      forceArgs: false
-    };
-    FIND_MAPPING = {
-      unix: "find",
-      ps: "Get-ChildItem -Recurse",
-      flagMap: {
-        "-name": "-Filter",
-        // maps -name pattern
-        "-type": "",
-        // we ignore -type for now
-        "-delete": ""
-        // handled specially in translation logic
-      },
-      forceArgs: true
-    };
-    PWD_MAPPING = {
-      unix: "pwd",
-      ps: "Get-Location",
-      flagMap: {},
-      forceArgs: false
-    };
-    DATE_MAPPING = {
-      unix: "date",
-      ps: "Get-Date",
-      flagMap: {},
-      forceArgs: false
-    };
-    CLEAR_MAPPING = {
-      unix: "clear",
-      ps: "Clear-Host",
-      flagMap: {},
-      forceArgs: false
-    };
-    PS_MAPPING = {
-      unix: "ps",
-      ps: "Get-Process",
-      flagMap: {},
-      forceArgs: false
-    };
-    KILL_MAPPING = {
-      unix: "kill",
-      ps: "Stop-Process",
-      flagMap: {
-        "-9": "-Force"
-      },
-      forceArgs: true
-    };
-    DF_MAPPING = {
-      unix: "df",
-      ps: "Get-PSDrive",
-      flagMap: {
-        "-h": ""
-        // human-readable not needed
-      },
-      forceArgs: false
-    };
-    HOSTNAME_MAPPING = {
-      unix: "hostname",
-      ps: "$env:COMPUTERNAME",
-      flagMap: {},
-      forceArgs: false
-    };
-    DIRNAME_MAPPING = {
-      unix: "dirname",
-      ps: "Split-Path -Parent",
-      flagMap: {},
-      forceArgs: true
-    };
-    BASENAME_MAPPING = {
-      unix: "basename",
-      ps: "Split-Path -Leaf",
-      flagMap: {},
-      forceArgs: true
-    };
-    TEE_MAPPING = {
-      unix: "tee",
-      ps: "Tee-Object -FilePath",
-      flagMap: {
-        "-a": "-Append"
-      },
-      forceArgs: true
-    };
-    TAR_MAPPING = {
-      unix: "tar",
-      ps: "tar",
-      // Use native tar if available, otherwise preserve
-      flagMap: {
-        "-c": "-c",
-        "-x": "-x",
-        "-f": "-f",
-        "-z": "-z",
-        "-j": "-j",
-        "-v": "-v",
-        "-t": "-t"
-      },
-      forceArgs: true
-    };
-    CURL_MAPPING = {
-      unix: "curl",
-      ps: "Invoke-WebRequest",
-      flagMap: {
-        "-o": "-OutFile",
-        "-O": "-OutFile",
-        "-s": "-UseBasicParsing",
-        "-L": "-MaximumRedirection",
-        "-H": "-Headers",
-        "-d": "-Body",
-        "-X": "-Method",
-        "-k": "-SkipCertificateCheck"
-      },
-      forceArgs: true
-    };
-    WGET_MAPPING = {
-      unix: "wget",
-      ps: "Invoke-WebRequest",
-      flagMap: {
-        "-O": "-OutFile",
-        "-o": "-OutFile",
-        "-q": "-UseBasicParsing",
-        "-c": "-Resume",
-        "-r": "-Recurse",
-        "-np": "-NoParent",
-        "-k": "-ConvertLinks"
-      },
-      forceArgs: true
-    };
-    DIFF_MAPPING = {
-      unix: "diff",
-      ps: "Compare-Object",
-      flagMap: {
-        "-u": "-Unified",
-        "-r": "-Recurse",
-        "-i": "-CaseInsensitive",
-        "-w": "-IgnoreWhiteSpace",
-        "-B": "-IgnoreBlankLines"
-      },
-      forceArgs: true
-    };
-    SPLIT_MAPPING = {
-      unix: "split",
-      ps: "Split-Content",
-      flagMap: {
-        "-l": "-LineCount",
-        "-b": "-ByteCount",
-        "-n": "-Number"
-      },
-      forceArgs: true
-    };
-    PASTE_MAPPING = {
-      unix: "paste",
-      ps: "Join-Object",
-      flagMap: {
-        "-d": "-Delimiter",
-        "-s": "-Serial"
-      },
-      forceArgs: true
-    };
-    RSYNC_MAPPING = {
-      unix: "rsync",
-      ps: "Copy-Item",
-      flagMap: {
-        "-a": "-Recurse",
-        // archive mode (recursive + preserve attributes)
-        "-v": "-Verbose",
-        // verbose
-        "-r": "-Recurse",
-        // recursive
-        "-u": "-Force",
-        // update (skip newer files)
-        "-n": "-WhatIf",
-        // dry run
-        "-P": "-PassThru"
-        // progress + partial
-      },
-      forceArgs: true
-    };
-    CHMOD_MAPPING = {
-      unix: "chmod",
-      ps: "icacls",
-      flagMap: {
-        "-R": "/T",
-        // recursive
-        "-v": "/Q"
-        // verbose (quiet in icacls)
-      },
-      forceArgs: true
-    };
-    CHOWN_MAPPING = {
-      unix: "chown",
-      ps: "icacls",
-      flagMap: {
-        "-R": "/T",
-        // recursive
-        "-v": "/Q"
-        // verbose (quiet in icacls)
-      },
-      forceArgs: true
-    };
-    LN_MAPPING = {
-      unix: "ln",
-      ps: "New-Item",
-      flagMap: {
-        "-s": "-ItemType SymbolicLink",
-        // symbolic link
-        "-f": "-Force",
-        // force
-        "-v": "-Verbose"
-        // verbose
-      },
-      forceArgs: true
-    };
-    DU_MAPPING = {
-      unix: "du",
-      ps: "Get-ChildItem",
-      flagMap: {
-        "-h": "-Recurse",
-        // human readable (handled in translation)
-        "-s": "-Recurse",
-        // summarize
-        "-a": "-Recurse",
-        // all files
-        "-c": "-Recurse"
-        // total
-      },
-      forceArgs: true
-    };
-    SYSTEMCTL_MAPPING = {
-      unix: "systemctl",
-      ps: "Get-Service",
-      // default fallback
-      flagMap: {
-        "start": "Start-Service",
-        "stop": "Stop-Service",
-        "restart": "Restart-Service",
-        "status": "Get-Service",
-        "enable": "Set-Service -StartupType Automatic",
-        "disable": "Set-Service -StartupType Disabled",
-        "reload": "Restart-Service"
-      },
-      forceArgs: true
-    };
-    LESS_MAPPING = {
-      unix: "less",
-      ps: "Get-Content | Out-Host -Paging",
-      flagMap: {
-        "-N": "-LineNumber",
-        "-M": "",
-        // show more info (handled in translation)
-        "-R": ""
-        // raw control chars (handled in translation)
-      },
-      forceArgs: false
-    };
-    MORE_MAPPING = {
-      unix: "more",
-      ps: "Get-Content | Out-Host -Paging",
-      flagMap: {
-        "-N": "-LineNumber",
-        "-c": "",
-        // clear screen (handled in translation)
-        "-p": ""
-        // pattern search (handled in translation)
-      },
-      forceArgs: false
-    };
-    PING_MAPPING = {
-      unix: "ping",
-      ps: "Test-Connection",
-      flagMap: {
-        "-c": "-Count",
-        "-i": "-Interval",
-        "-t": "-TimeoutSeconds",
-        "-W": "-TimeoutSeconds",
-        "-s": "-BufferSize",
-        "-l": "-BufferSize"
-      },
-      forceArgs: true
-    };
-    TOP_MAPPING = {
-      unix: "top",
-      ps: "Get-Process | Sort-Object CPU -Descending | Select-Object -First 20",
-      flagMap: {
-        "-n": "-First",
-        "-p": "-Id",
-        "-u": "-IncludeUserName"
-      },
-      forceArgs: false
-    };
-    RMDIR_MAPPING = {
-      unix: "rmdir",
-      ps: "Remove-Item -Directory",
-      flagMap: {
-        "-p": "-Recurse",
-        "-v": "-Verbose"
-      },
-      forceArgs: true
-    };
-    UPTIME_MAPPING = {
-      unix: "uptime",
-      ps: "(Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime",
-      flagMap: {},
-      forceArgs: false
-    };
-    FREE_MAPPING = {
-      unix: "free",
-      ps: "Get-Counter '\\Memory\\Available MBytes' | Select-Object -ExpandProperty CounterSamples | Select-Object InstanceName,CookedValue",
-      flagMap: {
-        "-h": "",
-        // human readable (handled in translation)
-        "-m": ""
-        // MB format (handled in translation)
-      },
-      forceArgs: false
-    };
-    NETSTAT_MAPPING = {
-      unix: "netstat",
-      ps: "Get-NetTCPConnection",
-      flagMap: {
-        "-t": "-State Listen",
-        "-u": "-State Listen",
-        "-l": "-State Listen",
-        "-n": "-State Listen",
-        "-a": "-State Listen",
-        "-p": "-State Listen"
-      },
-      forceArgs: false
-    };
-    SSH_MAPPING = {
-      unix: "ssh",
-      ps: "ssh",
-      flagMap: {
-        "-p": "-p",
-        "-i": "-i",
-        "-o": "-o",
-        "-L": "-L",
-        "-D": "-D"
-      },
-      forceArgs: true
-    };
-    GZIP_MAPPING = {
-      unix: "gzip",
-      ps: "Compress-Archive",
-      flagMap: {
-        "-d": "-DestinationPath",
-        "-r": "-Recurse",
-        "-f": "-Force",
-        "-v": "-Verbose"
-      },
-      forceArgs: false
-    };
-    GUNZIP_MAPPING = {
-      unix: "gunzip",
-      ps: "Expand-Archive",
-      flagMap: {
-        "-f": "-Force",
-        "-v": "-Verbose",
-        "-l": "-ListOnly"
-      },
-      forceArgs: false
-    };
-    JOBS_MAPPING = {
-      unix: "jobs",
-      ps: "Get-Job",
-      flagMap: {
-        "-l": "-IncludeChildJob",
-        "-p": "-Id",
-        "-r": "-State Running",
-        "-s": "-State Stopped"
-      },
-      forceArgs: false
-    };
-    BG_MAPPING = {
-      unix: "bg",
-      ps: "Resume-Job",
-      flagMap: {},
-      forceArgs: false
-    };
-    FG_MAPPING = {
-      unix: "fg",
-      ps: "Receive-Job",
-      flagMap: {},
-      forceArgs: false
-    };
-    NICE_MAPPING = {
-      unix: "nice",
-      ps: "Start-Process",
-      flagMap: {
-        "-n": "-Priority"
-      },
-      forceArgs: true
-    };
-    NOHUP_MAPPING = {
-      unix: "nohup",
-      ps: "Start-Process",
-      flagMap: {
-        "-n": "-NoNewWindow"
-      },
-      forceArgs: true
-    };
-    CHGRP_MAPPING = {
-      unix: "chgrp",
-      ps: "icacls",
-      flagMap: {
-        "-R": "/T",
-        "-v": "/Q"
-      },
-      forceArgs: true
-    };
-    UMASK_MAPPING = {
-      unix: "umask",
-      ps: "Get-ChildItem",
-      flagMap: {
-        "-S": ""
-      },
-      forceArgs: false
-    };
-    MKTEMP_MAPPING = {
-      unix: "mktemp",
-      ps: "New-TemporaryFile",
-      flagMap: {
-        "-d": "",
-        "-u": ""
-      },
-      forceArgs: false
-    };
-    REALPATH_MAPPING = {
-      unix: "realpath",
-      ps: "Resolve-Path",
-      flagMap: {
-        "-q": "-Quiet",
-        "-s": "-Relative"
-      },
-      forceArgs: true
-    };
-    JOIN_MAPPING = {
-      unix: "join",
-      ps: "Join-Object",
-      flagMap: {
-        "-1": "-JoinProperty",
-        "-2": "-MergeProperty",
-        "-t": "-Delimiter"
-      },
-      forceArgs: true
-    };
-    COMM_MAPPING = {
-      unix: "comm",
-      ps: "Compare-Object",
-      flagMap: {
-        "-1": "-IncludeEqual",
-        "-2": "-IncludeEqual",
-        "-3": "-IncludeEqual"
-      },
-      forceArgs: true
-    };
-    EXPAND_MAPPING = {
-      unix: "expand",
-      ps: "Get-Content",
-      flagMap: {
-        "-t": "-TabSize",
-        "-i": "-Initial"
-      },
-      forceArgs: true
-    };
-    UNEXPAND_MAPPING = {
-      unix: "unexpand",
-      ps: "Get-Content",
-      flagMap: {
-        "-a": "-All",
-        "-t": "-TabSize"
-      },
-      forceArgs: true
-    };
-    FOLD_MAPPING = {
-      unix: "fold",
-      ps: "Get-Content",
-      flagMap: {
-        "-b": "-Bytes",
-        "-s": "-Spaces",
-        "-w": "-Width"
-      },
-      forceArgs: true
-    };
-    FMT_MAPPING = {
-      unix: "fmt",
-      ps: "Get-Content",
-      flagMap: {
-        "-w": "-Width",
-        "-g": "-Goal",
-        "-p": "-Prefix"
-      },
-      forceArgs: true
-    };
-    TELNET_MAPPING = {
-      unix: "telnet",
-      ps: "Test-NetConnection",
-      flagMap: {
-        "-p": "-Port",
-        "-l": "-LocalAddress"
-      },
-      forceArgs: true
-    };
-    NC_MAPPING = {
-      unix: "nc",
-      ps: "Test-NetConnection",
-      flagMap: {
-        "-v": "-Verbose",
-        "-w": "-TimeoutSeconds",
-        "-l": "-Listen",
-        "-p": "-Port"
-      },
-      forceArgs: true
-    };
-    DIG_MAPPING = {
-      unix: "dig",
-      ps: "Resolve-DnsName",
-      flagMap: {
-        "+short": "-Type A",
-        "+trace": "-Type NS",
-        "-x": "-Type PTR"
-      },
-      forceArgs: true
-    };
-    NSLOOKUP_MAPPING = {
-      unix: "nslookup",
-      ps: "Resolve-DnsName",
-      flagMap: {
-        "-type": "-Type",
-        "-port": "-Port"
-      },
-      forceArgs: true
-    };
-    MAKE_MAPPING = {
-      unix: "make",
-      ps: "make",
-      flagMap: {
-        "-j": "-j",
-        "-f": "-f",
-        "-C": "-C",
-        "clean": "clean",
-        "install": "install"
-      },
-      forceArgs: false
-    };
-    GCC_MAPPING = {
-      unix: "gcc",
-      ps: "gcc",
-      flagMap: {
-        "-o": "-o",
-        "-c": "-c",
-        "-g": "-g",
-        "-Wall": "-Wall",
-        "-std": "-std"
-      },
-      forceArgs: true
-    };
-    GPP_MAPPING = {
-      unix: "g++",
-      ps: "g++",
-      flagMap: {
-        "-o": "-o",
-        "-c": "-c",
-        "-g": "-g",
-        "-Wall": "-Wall",
-        "-std": "-std"
-      },
-      forceArgs: true
-    };
-    GIT_MAPPING = {
-      unix: "git",
-      ps: "git",
-      flagMap: {
-        "clone": "clone",
-        "pull": "pull",
-        "push": "push",
-        "commit": "commit",
-        "status": "status",
-        "log": "log",
-        "branch": "branch",
-        "checkout": "checkout"
-      },
-      forceArgs: false
-    };
-    APT_MAPPING = {
-      unix: "apt",
-      ps: "winget",
-      flagMap: {
-        "install": "install",
-        "remove": "uninstall",
-        "update": "upgrade",
-        "upgrade": "upgrade",
-        "search": "search",
-        "list": "list"
-      },
-      forceArgs: false
-    };
-    APT_GET_MAPPING = {
-      unix: "apt-get",
-      ps: "winget",
-      flagMap: {
-        "install": "install",
-        "remove": "uninstall",
-        "update": "upgrade",
-        "upgrade": "upgrade",
-        "search": "search",
-        "list": "list"
-      },
-      forceArgs: false
-    };
-    YUM_MAPPING = {
-      unix: "yum",
-      ps: "winget",
-      flagMap: {
-        "install": "install",
-        "remove": "uninstall",
-        "update": "upgrade",
-        "upgrade": "upgrade",
-        "search": "search",
-        "list": "list"
-      },
-      forceArgs: false
-    };
-    DNF_MAPPING = {
-      unix: "dnf",
-      ps: "winget",
-      flagMap: {
-        "install": "install",
-        "remove": "uninstall",
-        "update": "upgrade",
-        "upgrade": "upgrade",
-        "search": "search",
-        "list": "list"
-      },
-      forceArgs: false
-    };
-    BREW_MAPPING = {
-      unix: "brew",
-      ps: "winget",
-      flagMap: {
-        "install": "install",
-        "uninstall": "uninstall",
-        "update": "upgrade",
-        "upgrade": "upgrade",
-        "search": "search",
-        "list": "list"
-      },
-      forceArgs: false
-    };
-    UNAME_MAPPING = {
-      unix: "uname",
-      ps: "Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, TotalPhysicalMemory",
-      flagMap: {
-        "-a": "-a",
-        "-r": "-r",
-        "-m": "-m",
-        "-n": "-n",
-        "-p": "-p",
-        "-s": "-s"
-      },
-      forceArgs: false
-    };
-    ID_MAPPING = {
-      unix: "id",
-      ps: "Get-Process -Id $PID | Select-Object ProcessName, Id, UserName",
-      flagMap: {
-        "-u": "-u",
-        "-g": "-g",
-        "-G": "-G",
-        "-n": "-n",
-        "-r": "-r"
-      },
-      forceArgs: false
-    };
-    GROUPS_MAPPING = {
-      unix: "groups",
-      ps: "Get-LocalGroup | Select-Object Name, Description",
-      flagMap: {},
-      forceArgs: false
-    };
-    WHO_MAPPING = {
-      unix: "who",
-      ps: "Get-Process | Where-Object {$_.ProcessName -like '*explorer*' -or $_.ProcessName -like '*winlogon*'} | Select-Object ProcessName, Id, UserName",
-      flagMap: {
-        "-a": "-a",
-        "-b": "-b",
-        "-d": "-d",
-        "-H": "-H",
-        "-i": "-i",
-        "-l": "-l",
-        "-p": "-p",
-        "-r": "-r",
-        "-t": "-t",
-        "-u": "-u"
-      },
-      forceArgs: false
-    };
-    W_MAPPING = {
-      unix: "w",
-      ps: "Get-Process | Where-Object {$_.ProcessName -like '*explorer*' -or $_.ProcessName -like '*winlogon*'} | Select-Object ProcessName, Id, UserName, CPU, WorkingSet",
-      flagMap: {
-        "hide": "-h",
-        "noheader": "-s",
-        "short": "-s",
-        "users": "-u"
-      },
-      forceArgs: false
-    };
-    REV_MAPPING = {
-      unix: "rev",
-      ps: "Get-Content $args | ForEach-Object { [string]::Join('', ($_.ToCharArray() | Sort-Object -Descending)) }",
-      flagMap: {},
-      forceArgs: false
-    };
-    TAC_MAPPING = {
-      unix: "tac",
-      ps: "Get-Content $args | Sort-Object -Descending",
-      flagMap: {
-        "before": "-b",
-        "regex": "-r",
-        "separator": "-s"
-      },
-      forceArgs: false
-    };
-    COLUMN_MAPPING = {
-      unix: "column",
-      ps: "Get-Content $args | Format-Table -AutoSize",
-      flagMap: {
-        "separator": "-s",
-        "table": "-t",
-        "width": "-w"
-      },
-      forceArgs: false
-    };
-    PR_MAPPING = {
-      unix: "pr",
-      ps: "Get-Content $args | Format-List",
-      flagMap: {
-        "columns": "-c",
-        "double": "-d",
-        "formfeed": "-f",
-        "header": "-h",
-        "length": "-l",
-        "merge": "-m",
-        "number": "-n",
-        "output": "-o",
-        "page": "-p",
-        "separator": "-s",
-        "width": "-w"
-      },
-      forceArgs: false
-    };
-    CSPLIT_MAPPING = {
-      unix: "csplit",
-      ps: 'Get-Content $args | ForEach-Object { if ($_ -match $pattern) { $i++; Set-Content "split$i.txt" -Value $_ } }',
-      flagMap: {
-        "prefix": "-f",
-        "digits": "-n",
-        "keep": "-k",
-        "quiet": "-q",
-        "suppress": "-s"
-      },
-      forceArgs: false
-    };
-    TSORT_MAPPING = {
-      unix: "tsort",
-      ps: "Get-Content $args | Sort-Object",
-      flagMap: {},
-      forceArgs: false
-    };
-    SHUTDOWN_MAPPING = {
-      unix: "shutdown",
-      ps: "Stop-Computer",
-      flagMap: {
-        "halt": "-h",
-        "poweroff": "-P",
-        "reboot": "-r",
-        "cancel": "-c",
-        "time": "-t"
-      },
-      forceArgs: false
-    };
-    REBOOT_MAPPING = {
-      unix: "reboot",
-      ps: "Restart-Computer",
-      flagMap: {
-        "force": "-f",
-        "now": "-n"
-      },
-      forceArgs: false
-    };
-    HALT_MAPPING = {
-      unix: "halt",
-      ps: "Stop-Computer -Force",
-      flagMap: {
-        "force": "-f",
-        "poweroff": "-p",
-        "reboot": "-r"
-      },
-      forceArgs: false
-    };
-    POWEROFF_MAPPING = {
-      unix: "poweroff",
-      ps: "Stop-Computer -Force",
-      flagMap: {
-        "force": "-f",
-        "halt": "-h",
-        "reboot": "-r"
-      },
-      forceArgs: false
-    };
-    USERADD_MAPPING = {
-      unix: "useradd",
-      ps: "New-LocalUser",
-      flagMap: {
-        "comment": "-c",
-        "home": "-d",
-        "expire": "-e",
-        "gecos": "-g",
-        "groups": "-G",
-        "system": "-r",
-        "shell": "-s",
-        "uid": "-u"
-      },
-      forceArgs: false
-    };
-    USERDEL_MAPPING = {
-      unix: "userdel",
-      ps: "Remove-LocalUser",
-      flagMap: {
-        "force": "-f",
-        "remove": "-r"
-      },
-      forceArgs: false
-    };
-    PASSWD_MAPPING = {
-      unix: "passwd",
-      ps: "Set-LocalUser -Password (Read-Host -AsSecureString 'Enter new password')",
-      flagMap: {
-        "delete": "-d",
-        "expire": "-e",
-        "force": "-f",
-        "lock": "-l",
-        "unlock": "-u"
-      },
-      forceArgs: false
-    };
-    SU_MAPPING = {
-      unix: "su",
-      ps: "Start-Process powershell -Verb RunAs",
-      flagMap: {
-        "command": "-c",
-        "login": "-l",
-        "preserve": "-p",
-        "shell": "-s"
-      },
-      forceArgs: false
-    };
-    SUDO_MAPPING = {
-      unix: "sudo",
-      ps: "Start-Process powershell -Verb RunAs -ArgumentList",
-      flagMap: {
-        "command": "-c",
-        "login": "-l",
-        "preserve": "-p",
-        "shell": "-s",
-        "user": "-u",
-        "group": "-g"
-      },
-      forceArgs: true
-    };
-    BASE_MAPPINGS = [
-      RM_MAPPING,
-      MKDIR_MAPPING,
-      LS_MAPPING,
-      CP_MAPPING,
-      MV_MAPPING,
-      TOUCH_MAPPING,
-      GREP_MAPPING,
-      CAT_MAPPING,
-      WHICH_MAPPING,
-      SORT_MAPPING,
-      UNIQ_MAPPING,
-      FIND_MAPPING,
-      PWD_MAPPING,
-      DATE_MAPPING,
-      CLEAR_MAPPING,
-      PS_MAPPING,
-      KILL_MAPPING,
-      DF_MAPPING,
-      HOSTNAME_MAPPING,
-      DIRNAME_MAPPING,
-      BASENAME_MAPPING,
-      TEE_MAPPING,
-      TAR_MAPPING,
-      CURL_MAPPING,
-      WGET_MAPPING,
-      DIFF_MAPPING,
-      SPLIT_MAPPING,
-      PASTE_MAPPING,
-      RSYNC_MAPPING,
-      CHMOD_MAPPING,
-      CHOWN_MAPPING,
-      LN_MAPPING,
-      DU_MAPPING,
-      SYSTEMCTL_MAPPING,
-      LESS_MAPPING,
-      MORE_MAPPING,
-      PING_MAPPING,
-      TOP_MAPPING,
-      RMDIR_MAPPING,
-      UPTIME_MAPPING,
-      FREE_MAPPING,
-      NETSTAT_MAPPING,
-      SSH_MAPPING,
-      GZIP_MAPPING,
-      GUNZIP_MAPPING,
-      JOBS_MAPPING,
-      BG_MAPPING,
-      FG_MAPPING,
-      NICE_MAPPING,
-      NOHUP_MAPPING,
-      CHGRP_MAPPING,
-      UMASK_MAPPING,
-      MKTEMP_MAPPING,
-      REALPATH_MAPPING,
-      JOIN_MAPPING,
-      COMM_MAPPING,
-      EXPAND_MAPPING,
-      UNEXPAND_MAPPING,
-      FOLD_MAPPING,
-      FMT_MAPPING,
-      TELNET_MAPPING,
-      NC_MAPPING,
-      DIG_MAPPING,
-      NSLOOKUP_MAPPING,
-      MAKE_MAPPING,
-      GCC_MAPPING,
-      GPP_MAPPING,
-      GIT_MAPPING,
-      APT_MAPPING,
-      APT_GET_MAPPING,
-      YUM_MAPPING,
-      DNF_MAPPING,
-      BREW_MAPPING,
-      UNAME_MAPPING,
-      ID_MAPPING,
-      GROUPS_MAPPING,
-      WHO_MAPPING,
-      W_MAPPING,
-      REV_MAPPING,
-      TAC_MAPPING,
-      COLUMN_MAPPING,
-      PR_MAPPING,
-      CSPLIT_MAPPING,
-      TSORT_MAPPING,
-      SHUTDOWN_MAPPING,
-      REBOOT_MAPPING,
-      HALT_MAPPING,
-      POWEROFF_MAPPING,
-      USERADD_MAPPING,
-      USERDEL_MAPPING,
-      PASSWD_MAPPING,
-      SU_MAPPING,
-      SUDO_MAPPING
-    ];
-    EXTRA_MAPPINGS = [];
-    MAPPINGS = [...BASE_MAPPINGS, ...EXTRA_MAPPINGS];
-    originalSmartJoin = smartJoin;
-  }
-});
 
 // src/translate.ts
-var translate_exports = {};
-__export(translate_exports, {
-  __test_splitByConnectors: () => splitByConnectors,
-  detectShell: () => detectShell,
-  lintCommand: () => lintCommand,
-  translateCommand: () => translateCommand
-});
+console.log("src/translate.ts LOADED");
+var DYNAMIC_CMDS = [
+  "head",
+  "tail",
+  "wc",
+  "sleep",
+  "whoami",
+  "sed",
+  "awk",
+  "cut",
+  "tr",
+  "uniq",
+  "sort",
+  "find",
+  "xargs",
+  "echo",
+  "nl"
+];
+var SUPPORTED_COMMANDS = /* @__PURE__ */ new Set([...MAPPINGS.map((m) => m.unix), ...DYNAMIC_CMDS]);
 function lintCommand(cmd) {
   const unsupported = [];
   const suggestions = [];
@@ -1936,13 +1927,16 @@ function getFlagSuggestions(cmd, unknownFlag, allowedFlags) {
   }
   return suggestions;
 }
+var _a;
+var OVERRIDE_SHELL = (_a = process.env.SMARTSH_SHELL) == null ? void 0 : _a.toLowerCase();
+var DEBUG = process.env.SMARTSH_DEBUG === "1" || process.env.SMARTSH_DEBUG === "true";
 function debugLog(...args) {
   if (DEBUG) {
     console.log("[smartsh/sm debug]", ...args);
   }
 }
 function getPowerShellVersionSync() {
-  const { execSync } = __require("child_process");
+  const { execSync } = require("child_process");
   const candidates = ["powershell", "pwsh"];
   for (const cmd of candidates) {
     try {
@@ -2106,269 +2100,9 @@ function translateForLegacyPowerShell(command) {
   }
   return script;
 }
-var DYNAMIC_CMDS, SUPPORTED_COMMANDS, _a, OVERRIDE_SHELL, DEBUG;
-var init_translate = __esm({
-  "src/translate.ts"() {
-    "use strict";
-    init_unixMappings();
-    init_tokenize();
-    init_unixMappings();
-    console.log("src/translate.ts LOADED");
-    DYNAMIC_CMDS = [
-      "head",
-      "tail",
-      "wc",
-      "sleep",
-      "whoami",
-      "sed",
-      "awk",
-      "cut",
-      "tr",
-      "uniq",
-      "sort",
-      "find",
-      "xargs",
-      "echo",
-      "nl"
-    ];
-    SUPPORTED_COMMANDS = /* @__PURE__ */ new Set([...MAPPINGS.map((m) => m.unix), ...DYNAMIC_CMDS]);
-    OVERRIDE_SHELL = (_a = process.env.SMARTSH_SHELL) == null ? void 0 : _a.toLowerCase();
-    DEBUG = process.env.SMARTSH_DEBUG === "1" || process.env.SMARTSH_DEBUG === "true";
-  }
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  detectShell,
+  lintCommand,
+  translateCommand
 });
-
-// src/config.ts
-import fs from "fs";
-import path from "path";
-import os from "os";
-function readJson(filePath) {
-  try {
-    const txt = fs.readFileSync(filePath, "utf8");
-    return JSON.parse(txt);
-  } catch {
-    return null;
-  }
-}
-function initConfig() {
-  const home = os.homedir();
-  const candidates = [
-    path.join(home, ".smartshrc"),
-    path.join(home, ".smartshrc.json"),
-    path.join(home, ".smartshrc.js"),
-    path.join(home, ".smartshrc.cjs")
-  ];
-  let cfg = null;
-  for (const p of candidates) {
-    if (fs.existsSync(p)) {
-      if (p.endsWith(".js") || p.endsWith(".cjs")) {
-        try {
-          const mod = __require(p);
-          if (typeof mod === "function") {
-            cfg = mod({ addExtraMappings });
-          } else {
-            cfg = mod;
-          }
-        } catch {
-          cfg = null;
-        }
-      } else {
-        cfg = readJson(p);
-      }
-      if (cfg) break;
-    }
-  }
-  if ((cfg == null ? void 0 : cfg.mappings) && Array.isArray(cfg.mappings)) {
-    addExtraMappings(cfg.mappings);
-  }
-}
-var init_config = __esm({
-  "src/config.ts"() {
-    "use strict";
-    init_unixMappings();
-  }
-});
-
-// src/cli.ts
-import { spawn } from "child_process";
-var require_cli = __commonJS({
-  "src/cli.ts"(exports, module) {
-    init_translate();
-    init_config();
-    var TOOL_NAME = "smartsh";
-    function runInShell(shellInfo, command) {
-      if (shellInfo.type === "powershell") {
-        let exe = "powershell";
-        if (shellInfo.version && shellInfo.version >= 7) {
-          try {
-            __require("child_process").execSync("pwsh -Version", { stdio: "ignore" });
-            exe = "pwsh";
-          } catch {
-            exe = "powershell";
-          }
-        }
-        const child2 = spawn(exe, ["-NoProfile", "-Command", command], {
-          stdio: "inherit"
-        });
-        child2.on("error", (err) => {
-          console.error(`${TOOL_NAME}: Failed to start command:`, err);
-        });
-        child2.on("exit", (code, signal) => {
-          if (signal) process.kill(process.pid, signal);
-          else process.exit(code ?? 0);
-        });
-        return;
-      }
-      let shellOption = true;
-      if (shellInfo.type === "cmd") {
-        shellOption = "cmd.exe";
-      }
-      const child = spawn(command, {
-        shell: shellOption,
-        stdio: "inherit"
-      });
-      child.on("error", (err) => {
-        console.error(`${TOOL_NAME}: Failed to start command:`, err);
-      });
-      child.on("exit", (code, signal) => {
-        if (signal) process.kill(process.pid, signal);
-        else process.exit(code ?? 0);
-      });
-    }
-    function main() {
-      initConfig();
-      const rawArgs = process.argv.slice(2);
-      let translateOnly = false;
-      let dryRun = false;
-      const cmdParts = [];
-      let i = 0;
-      let lintOnly = false;
-      let completionShell = null;
-      for (; i < rawArgs.length; i++) {
-        const arg = rawArgs[i];
-        if (arg === "--translate-only" || arg === "-t") {
-          translateOnly = true;
-          continue;
-        }
-        if (arg === "--dry-run") {
-          dryRun = true;
-          continue;
-        }
-        if (arg === "--lint" || arg === "-l") {
-          lintOnly = true;
-          continue;
-        }
-        if (arg === "--debug" || arg === "-d") {
-          process.env.SMARTSH_DEBUG = "1";
-          continue;
-        }
-        if (arg.startsWith("--completion")) {
-          if (arg.includes("=")) {
-            completionShell = arg.split("=")[1];
-          } else if (i + 1 < rawArgs.length) {
-            completionShell = rawArgs[i + 1];
-            i++;
-          }
-          continue;
-        }
-        cmdParts.push(arg);
-      }
-      if (completionShell) {
-        const script = generateCompletionScript(completionShell);
-        if (!script) {
-          console.error(`${TOOL_NAME}: Unknown shell '${completionShell}'. Supported shells: bash, zsh, powershell`);
-          process.exit(1);
-        }
-        console.log(script);
-        process.exit(0);
-      }
-      if (cmdParts.length === 0) {
-        console.error(
-          `${TOOL_NAME}: No command provided. Usage: ${TOOL_NAME} [--translate-only] [--debug] "echo hello && echo world"`
-        );
-        process.exit(1);
-      }
-      const originalCommand = cmdParts.join(" ");
-      const shellInfo = detectShell();
-      if (lintOnly) {
-        const { lintCommand: lintCommand2 } = (init_translate(), __toCommonJS(translate_exports));
-        const res = lintCommand2(originalCommand);
-        if (res.unsupported.length === 0) {
-          console.log("\u2714 All segments are supported.");
-          process.exit(0);
-        }
-        console.error("\u2716 Unsupported segments detected:");
-        for (const seg of res.unsupported) {
-          console.error("  -", seg);
-        }
-        if (res.suggestions.length > 0) {
-          console.error("\n\u{1F4A1} Suggestions:");
-          for (const suggestion of res.suggestions) {
-            console.error(suggestion);
-          }
-        }
-        process.exit(1);
-      }
-      const commandToRun = translateCommand(originalCommand, shellInfo);
-      if (translateOnly || dryRun) {
-        console.log(commandToRun);
-        return;
-      }
-      runInShell(shellInfo, commandToRun);
-    }
-    function generateCompletionScript(shell) {
-      const flags = [
-        "--translate-only",
-        "-t",
-        "--lint",
-        "-l",
-        "--debug",
-        "-d",
-        "--completion"
-      ];
-      switch (shell) {
-        case "bash":
-          return `# bash completion for smartsh
-_smartsh_complete() {
-  local cur="\${COMP_WORDS[COMP_CWORD]}"
-  local opts="${flags.join(" ")}"
-  COMPREPLY=( $(compgen -W "$opts" -- $cur) )
-  return 0
-}
-complete -F _smartsh_complete smartsh sm`;
-        case "zsh":
-          return `#compdef smartsh sm
-_arguments '*::options:->options'
-case $state in
-  options)
-    local opts=(
-      '--translate-only[Translate but do not execute]'
-      '-t[Translate but do not execute]'
-      '--lint[Lint command for unsupported segments]'
-      '-l[Lint command]'
-      '--debug[Enable debug output]'
-      '-d[Enable debug output]'
-      '--completion=[Generate completion script]:shell:(bash zsh powershell)'
-    )
-    _describe 'options' opts
-  ;;
-esac`;
-        case "powershell":
-        case "pwsh":
-          return `# PowerShell completion for smartsh
-Register-ArgumentCompleter -CommandName smartsh, sm -ScriptBlock {
-    param($wordToComplete, $commandAst, $cursorPosition)
-    $opts = ${flags.map((f) => `'${f}'`).join(", ")}
-    $opts | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
-        [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterName', $_)
-    }
-}`;
-        default:
-          return null;
-      }
-    }
-    if (__require.main === module) {
-      main();
-    }
-  }
-});
-export default require_cli();
