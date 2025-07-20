@@ -1352,6 +1352,118 @@ const UPDATEDB_MAPPING: CommandMapping = {
   forceArgs: false,
 };
 
+// Network & Connectivity
+const TRACEPATH_MAPPING: CommandMapping = {
+  unix: "tracepath",
+  ps: "Test-NetConnection -TraceRoute",
+  flagMap: {
+    "n": "-ResolveDns:$false",
+    "b": "-ResolveDns",
+    "l": "-MaxHops",
+    "m": "-MaxHops",
+  },
+  forceArgs: true,
+};
+
+const MTR_MAPPING: CommandMapping = {
+  unix: "mtr",
+  ps: "Test-NetConnection -TraceRoute -InformationLevel Detailed",
+  flagMap: {
+    "n": "-ResolveDns:$false",
+    "r": "-ResolveDns",
+    "c": "-Count",
+    "i": "-Interval",
+  },
+  forceArgs: true,
+};
+
+// File System & Archives
+const BZIP2_MAPPING: CommandMapping = {
+  unix: "bzip2",
+  ps: "Compress-Archive -CompressionLevel Optimal",
+  flagMap: {
+    "d": "-Decompress",
+    "k": "-KeepOriginal",
+    "v": "-Verbose",
+    "f": "-Force",
+  },
+  forceArgs: true,
+};
+
+const BUNZIP2_MAPPING: CommandMapping = {
+  unix: "bunzip2",
+  ps: "Expand-Archive",
+  flagMap: {
+    "k": "-KeepOriginal",
+    "v": "-Verbose",
+    "f": "-Force",
+  },
+  forceArgs: true,
+};
+
+// Text Processing
+const WC_MAPPING: CommandMapping = {
+  unix: "wc",
+  ps: "Get-Content | Measure-Object -Line -Word -Character",
+  flagMap: {
+    "l": "-Line",
+    "w": "-Word",
+    "c": "-Character",
+    "m": "-Character",
+    "L": "-Maximum",
+  },
+  forceArgs: true,
+};
+
+const HEAD_MAPPING: CommandMapping = {
+  unix: "head",
+  ps: "Get-Content | Select-Object -First",
+  flagMap: {
+    "n": "-First",
+    "c": "-TotalCount",
+    "q": "-Quiet",
+    "v": "-Verbose",
+  },
+  forceArgs: true,
+};
+
+const TAIL_MAPPING: CommandMapping = {
+  unix: "tail",
+  ps: "Get-Content | Select-Object -Last",
+  flagMap: {
+    "n": "-Last",
+    "c": "-TotalCount",
+    "f": "-Wait",
+    "q": "-Quiet",
+  },
+  forceArgs: true,
+};
+
+// System Information
+const LSB_RELEASE_MAPPING: CommandMapping = {
+  unix: "lsb_release",
+  ps: "Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, WindowsBuildLabEx",
+  flagMap: {
+    "a": "-All",
+    "d": "-Description",
+    "r": "-Release",
+    "c": "-Codename",
+  },
+  forceArgs: false,
+};
+
+const DMESG_MAPPING: CommandMapping = {
+  unix: "dmesg",
+  ps: "Get-WinEvent -LogName System | Where-Object {$_.TimeCreated -gt (Get-Date).AddHours(-1)} | Format-Table TimeCreated, Message -AutoSize",
+  flagMap: {
+    "T": "-Format",
+    "r": "-Raw",
+    "k": "-Kernel",
+    "x": "-Extended",
+  },
+  forceArgs: false,
+};
+
 const BASE_MAPPINGS: CommandMapping[] = [
   RM_MAPPING,
   MKDIR_MAPPING,
@@ -1471,6 +1583,15 @@ const BASE_MAPPINGS: CommandMapping[] = [
   STrace_MAPPING,
   LOCATE_MAPPING,
   UPDATEDB_MAPPING,
+  TRACEPATH_MAPPING,
+  MTR_MAPPING,
+  BZIP2_MAPPING,
+  BUNZIP2_MAPPING,
+  WC_MAPPING,
+  HEAD_MAPPING,
+  TAIL_MAPPING,
+  LSB_RELEASE_MAPPING,
+  DMESG_MAPPING,
 ];
 
 const EXTRA_MAPPINGS: CommandMapping[] = [];

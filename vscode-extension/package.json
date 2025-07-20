@@ -10,7 +10,6 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:smartsh.translateCommand",
     "onLanguage:shellscript",
     "onLanguage:powershell"
   ],

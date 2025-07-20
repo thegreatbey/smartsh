@@ -786,7 +786,7 @@ function translateSingleUnixSegment(segment) {
   const psCommand = `${mapping.ps}${psFlags}`.trim();
   return smartJoinEnhanced([psCommand, ...processedArgTokens]);
 }
-var RM_MAPPING, MKDIR_MAPPING, LS_MAPPING, CP_MAPPING, MV_MAPPING, TOUCH_MAPPING, GREP_MAPPING, CAT_MAPPING, WHICH_MAPPING, SORT_MAPPING, UNIQ_MAPPING, FIND_MAPPING, PWD_MAPPING, DATE_MAPPING, CLEAR_MAPPING, PS_MAPPING, KILL_MAPPING, DF_MAPPING, HOSTNAME_MAPPING, DIRNAME_MAPPING, BASENAME_MAPPING, TEE_MAPPING, TAR_MAPPING, CURL_MAPPING, WGET_MAPPING, DIFF_MAPPING, SPLIT_MAPPING, PASTE_MAPPING, RSYNC_MAPPING, CHMOD_MAPPING, CHOWN_MAPPING, LN_MAPPING, DU_MAPPING, SYSTEMCTL_MAPPING, LESS_MAPPING, MORE_MAPPING, PING_MAPPING, TOP_MAPPING, RMDIR_MAPPING, UPTIME_MAPPING, FREE_MAPPING, NETSTAT_MAPPING, SSH_MAPPING, GZIP_MAPPING, GUNZIP_MAPPING, JOBS_MAPPING, BG_MAPPING, FG_MAPPING, NICE_MAPPING, NOHUP_MAPPING, CHGRP_MAPPING, UMASK_MAPPING, MKTEMP_MAPPING, REALPATH_MAPPING, JOIN_MAPPING, COMM_MAPPING, EXPAND_MAPPING, UNEXPAND_MAPPING, FOLD_MAPPING, FMT_MAPPING, TELNET_MAPPING, NC_MAPPING, DIG_MAPPING, NSLOOKUP_MAPPING, MAKE_MAPPING, GCC_MAPPING, GPP_MAPPING, GIT_MAPPING, APT_MAPPING, APT_GET_MAPPING, YUM_MAPPING, DNF_MAPPING, BREW_MAPPING, UNAME_MAPPING, ID_MAPPING, GROUPS_MAPPING, WHO_MAPPING, W_MAPPING, REV_MAPPING, TAC_MAPPING, COLUMN_MAPPING, PR_MAPPING, CSPLIT_MAPPING, TSORT_MAPPING, SHUTDOWN_MAPPING, REBOOT_MAPPING, HALT_MAPPING, POWEROFF_MAPPING, USERADD_MAPPING, USERDEL_MAPPING, PASSWD_MAPPING, SU_MAPPING, SUDO_MAPPING, TRACEROUTE_MAPPING, IFCONFIG_MAPPING, PKILL_MAPPING, PGREP_MAPPING, KILLALL_MAPPING, RENICE_MAPPING, MOUNT_MAPPING, UMOUNT_MAPPING, IOSTAT_MAPPING, VMSTAT_MAPPING, SAR_MAPPING, PIP_MAPPING, NPM_MAPPING, YARN_MAPPING, CARGO_MAPPING, CMAKE_MAPPING, ROUTE_MAPPING, IWCONFIG_MAPPING, IWSCAN_MAPPING, ZIP_MAPPING, UNZIP_MAPPING, LSOF_MAPPING, STrace_MAPPING, LOCATE_MAPPING, UPDATEDB_MAPPING, BASE_MAPPINGS, EXTRA_MAPPINGS, MAPPINGS, originalSmartJoin;
+var RM_MAPPING, MKDIR_MAPPING, LS_MAPPING, CP_MAPPING, MV_MAPPING, TOUCH_MAPPING, GREP_MAPPING, CAT_MAPPING, WHICH_MAPPING, SORT_MAPPING, UNIQ_MAPPING, FIND_MAPPING, PWD_MAPPING, DATE_MAPPING, CLEAR_MAPPING, PS_MAPPING, KILL_MAPPING, DF_MAPPING, HOSTNAME_MAPPING, DIRNAME_MAPPING, BASENAME_MAPPING, TEE_MAPPING, TAR_MAPPING, CURL_MAPPING, WGET_MAPPING, DIFF_MAPPING, SPLIT_MAPPING, PASTE_MAPPING, RSYNC_MAPPING, CHMOD_MAPPING, CHOWN_MAPPING, LN_MAPPING, DU_MAPPING, SYSTEMCTL_MAPPING, LESS_MAPPING, MORE_MAPPING, PING_MAPPING, TOP_MAPPING, RMDIR_MAPPING, UPTIME_MAPPING, FREE_MAPPING, NETSTAT_MAPPING, SSH_MAPPING, GZIP_MAPPING, GUNZIP_MAPPING, JOBS_MAPPING, BG_MAPPING, FG_MAPPING, NICE_MAPPING, NOHUP_MAPPING, CHGRP_MAPPING, UMASK_MAPPING, MKTEMP_MAPPING, REALPATH_MAPPING, JOIN_MAPPING, COMM_MAPPING, EXPAND_MAPPING, UNEXPAND_MAPPING, FOLD_MAPPING, FMT_MAPPING, TELNET_MAPPING, NC_MAPPING, DIG_MAPPING, NSLOOKUP_MAPPING, MAKE_MAPPING, GCC_MAPPING, GPP_MAPPING, GIT_MAPPING, APT_MAPPING, APT_GET_MAPPING, YUM_MAPPING, DNF_MAPPING, BREW_MAPPING, UNAME_MAPPING, ID_MAPPING, GROUPS_MAPPING, WHO_MAPPING, W_MAPPING, REV_MAPPING, TAC_MAPPING, COLUMN_MAPPING, PR_MAPPING, CSPLIT_MAPPING, TSORT_MAPPING, SHUTDOWN_MAPPING, REBOOT_MAPPING, HALT_MAPPING, POWEROFF_MAPPING, USERADD_MAPPING, USERDEL_MAPPING, PASSWD_MAPPING, SU_MAPPING, SUDO_MAPPING, TRACEROUTE_MAPPING, IFCONFIG_MAPPING, PKILL_MAPPING, PGREP_MAPPING, KILLALL_MAPPING, RENICE_MAPPING, MOUNT_MAPPING, UMOUNT_MAPPING, IOSTAT_MAPPING, VMSTAT_MAPPING, SAR_MAPPING, PIP_MAPPING, NPM_MAPPING, YARN_MAPPING, CARGO_MAPPING, CMAKE_MAPPING, ROUTE_MAPPING, IWCONFIG_MAPPING, IWSCAN_MAPPING, ZIP_MAPPING, UNZIP_MAPPING, LSOF_MAPPING, STrace_MAPPING, LOCATE_MAPPING, UPDATEDB_MAPPING, TRACEPATH_MAPPING, MTR_MAPPING, BZIP2_MAPPING, BUNZIP2_MAPPING, WC_MAPPING, HEAD_MAPPING, TAIL_MAPPING, LSB_RELEASE_MAPPING, DMESG_MAPPING, BASE_MAPPINGS, EXTRA_MAPPINGS, MAPPINGS, originalSmartJoin;
 var init_unixMappings = __esm({
   "src/unixMappings.ts"() {
     "use strict";
@@ -2021,6 +2021,105 @@ var init_unixMappings = __esm({
       },
       forceArgs: false
     };
+    TRACEPATH_MAPPING = {
+      unix: "tracepath",
+      ps: "Test-NetConnection -TraceRoute",
+      flagMap: {
+        "n": "-ResolveDns:$false",
+        "b": "-ResolveDns",
+        "l": "-MaxHops",
+        "m": "-MaxHops"
+      },
+      forceArgs: true
+    };
+    MTR_MAPPING = {
+      unix: "mtr",
+      ps: "Test-NetConnection -TraceRoute -InformationLevel Detailed",
+      flagMap: {
+        "n": "-ResolveDns:$false",
+        "r": "-ResolveDns",
+        "c": "-Count",
+        "i": "-Interval"
+      },
+      forceArgs: true
+    };
+    BZIP2_MAPPING = {
+      unix: "bzip2",
+      ps: "Compress-Archive -CompressionLevel Optimal",
+      flagMap: {
+        "d": "-Decompress",
+        "k": "-KeepOriginal",
+        "v": "-Verbose",
+        "f": "-Force"
+      },
+      forceArgs: true
+    };
+    BUNZIP2_MAPPING = {
+      unix: "bunzip2",
+      ps: "Expand-Archive",
+      flagMap: {
+        "k": "-KeepOriginal",
+        "v": "-Verbose",
+        "f": "-Force"
+      },
+      forceArgs: true
+    };
+    WC_MAPPING = {
+      unix: "wc",
+      ps: "Get-Content | Measure-Object -Line -Word -Character",
+      flagMap: {
+        "l": "-Line",
+        "w": "-Word",
+        "c": "-Character",
+        "m": "-Character",
+        "L": "-Maximum"
+      },
+      forceArgs: true
+    };
+    HEAD_MAPPING = {
+      unix: "head",
+      ps: "Get-Content | Select-Object -First",
+      flagMap: {
+        "n": "-First",
+        "c": "-TotalCount",
+        "q": "-Quiet",
+        "v": "-Verbose"
+      },
+      forceArgs: true
+    };
+    TAIL_MAPPING = {
+      unix: "tail",
+      ps: "Get-Content | Select-Object -Last",
+      flagMap: {
+        "n": "-Last",
+        "c": "-TotalCount",
+        "f": "-Wait",
+        "q": "-Quiet"
+      },
+      forceArgs: true
+    };
+    LSB_RELEASE_MAPPING = {
+      unix: "lsb_release",
+      ps: "Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, WindowsBuildLabEx",
+      flagMap: {
+        "a": "-All",
+        "d": "-Description",
+        "r": "-Release",
+        "c": "-Codename"
+      },
+      forceArgs: false
+    };
+    DMESG_MAPPING = {
+      unix: "dmesg",
+      ps: "Get-WinEvent -LogName System | Where-Object {$_.TimeCreated -gt (Get-Date).AddHours(-1)} | Format-Table TimeCreated, Message -AutoSize",
+      flagMap: {
+        "T": "-Format",
+        "r": "-Raw",
+        "k": "-Kernel",
+        "x": "-Extended"
+      },
+      forceArgs: false
+    };
     BASE_MAPPINGS = [
       RM_MAPPING,
       MKDIR_MAPPING,
@@ -2139,7 +2238,16 @@ var init_unixMappings = __esm({
       LSOF_MAPPING,
       STrace_MAPPING,
       LOCATE_MAPPING,
-      UPDATEDB_MAPPING
+      UPDATEDB_MAPPING,
+      TRACEPATH_MAPPING,
+      MTR_MAPPING,
+      BZIP2_MAPPING,
+      BUNZIP2_MAPPING,
+      WC_MAPPING,
+      HEAD_MAPPING,
+      TAIL_MAPPING,
+      LSB_RELEASE_MAPPING,
+      DMESG_MAPPING
     ];
     EXTRA_MAPPINGS = [];
     MAPPINGS = [...BASE_MAPPINGS, ...EXTRA_MAPPINGS];

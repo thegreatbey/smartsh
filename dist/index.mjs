@@ -1353,6 +1353,105 @@ var UPDATEDB_MAPPING = {
   },
   forceArgs: false
 };
+var TRACEPATH_MAPPING = {
+  unix: "tracepath",
+  ps: "Test-NetConnection -TraceRoute",
+  flagMap: {
+    "n": "-ResolveDns:$false",
+    "b": "-ResolveDns",
+    "l": "-MaxHops",
+    "m": "-MaxHops"
+  },
+  forceArgs: true
+};
+var MTR_MAPPING = {
+  unix: "mtr",
+  ps: "Test-NetConnection -TraceRoute -InformationLevel Detailed",
+  flagMap: {
+    "n": "-ResolveDns:$false",
+    "r": "-ResolveDns",
+    "c": "-Count",
+    "i": "-Interval"
+  },
+  forceArgs: true
+};
+var BZIP2_MAPPING = {
+  unix: "bzip2",
+  ps: "Compress-Archive -CompressionLevel Optimal",
+  flagMap: {
+    "d": "-Decompress",
+    "k": "-KeepOriginal",
+    "v": "-Verbose",
+    "f": "-Force"
+  },
+  forceArgs: true
+};
+var BUNZIP2_MAPPING = {
+  unix: "bunzip2",
+  ps: "Expand-Archive",
+  flagMap: {
+    "k": "-KeepOriginal",
+    "v": "-Verbose",
+    "f": "-Force"
+  },
+  forceArgs: true
+};
+var WC_MAPPING = {
+  unix: "wc",
+  ps: "Get-Content | Measure-Object -Line -Word -Character",
+  flagMap: {
+    "l": "-Line",
+    "w": "-Word",
+    "c": "-Character",
+    "m": "-Character",
+    "L": "-Maximum"
+  },
+  forceArgs: true
+};
+var HEAD_MAPPING = {
+  unix: "head",
+  ps: "Get-Content | Select-Object -First",
+  flagMap: {
+    "n": "-First",
+    "c": "-TotalCount",
+    "q": "-Quiet",
+    "v": "-Verbose"
+  },
+  forceArgs: true
+};
+var TAIL_MAPPING = {
+  unix: "tail",
+  ps: "Get-Content | Select-Object -Last",
+  flagMap: {
+    "n": "-Last",
+    "c": "-TotalCount",
+    "f": "-Wait",
+    "q": "-Quiet"
+  },
+  forceArgs: true
+};
+var LSB_RELEASE_MAPPING = {
+  unix: "lsb_release",
+  ps: "Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, WindowsBuildLabEx",
+  flagMap: {
+    "a": "-All",
+    "d": "-Description",
+    "r": "-Release",
+    "c": "-Codename"
+  },
+  forceArgs: false
+};
+var DMESG_MAPPING = {
+  unix: "dmesg",
+  ps: "Get-WinEvent -LogName System | Where-Object {$_.TimeCreated -gt (Get-Date).AddHours(-1)} | Format-Table TimeCreated, Message -AutoSize",
+  flagMap: {
+    "T": "-Format",
+    "r": "-Raw",
+    "k": "-Kernel",
+    "x": "-Extended"
+  },
+  forceArgs: false
+};
 var BASE_MAPPINGS = [
   RM_MAPPING,
   MKDIR_MAPPING,
@@ -1471,7 +1570,16 @@ var BASE_MAPPINGS = [
   LSOF_MAPPING,
   STrace_MAPPING,
   LOCATE_MAPPING,
-  UPDATEDB_MAPPING
+  UPDATEDB_MAPPING,
+  TRACEPATH_MAPPING,
+  MTR_MAPPING,
+  BZIP2_MAPPING,
+  BUNZIP2_MAPPING,
+  WC_MAPPING,
+  HEAD_MAPPING,
+  TAIL_MAPPING,
+  LSB_RELEASE_MAPPING,
+  DMESG_MAPPING
 ];
 var EXTRA_MAPPINGS = [];
 var MAPPINGS = [...BASE_MAPPINGS, ...EXTRA_MAPPINGS];
