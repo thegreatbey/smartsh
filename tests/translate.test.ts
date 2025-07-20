@@ -59,6 +59,8 @@ describe("translateCommand", () => {
   const legacyPS = {
     type: "powershell",
     supportsConditionalConnectors: false,
+    needsUnixTranslation: true,
+    targetShell: "powershell",
   } as const;
 
   test("translates for legacy PowerShell", () => {
@@ -69,8 +71,8 @@ describe("translateCommand", () => {
 });
 
 describe("translateCommand with Unix commands", () => {
-  const ps7 = { type: "powershell", supportsConditionalConnectors: true } as const;
-  const ps5 = { type: "powershell", supportsConditionalConnectors: false } as const;
+  const ps7 = { type: "powershell", supportsConditionalConnectors: true, needsUnixTranslation: true, targetShell: "powershell" } as const;
+  const ps5 = { type: "powershell", supportsConditionalConnectors: false, needsUnixTranslation: true, targetShell: "powershell" } as const;
 
   test("translates rm -rf for PowerShell 7+", () => {
     expect(translateCommand("rm -rf dist", ps7)).toBe(

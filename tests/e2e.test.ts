@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { translateCommand } from "../src/translate";
 
 describe("E2E translation scenarios", () => {
-  const ps5 = { type: "powershell", supportsConditionalConnectors: false } as const;
+  const ps5 = { type: "powershell", supportsConditionalConnectors: false, needsUnixTranslation: true, targetShell: "powershell" } as const;
 
   test("complex pipeline and connectors", () => {
     const input = "ls -la | grep .ts | head -5 && echo done || echo fail";

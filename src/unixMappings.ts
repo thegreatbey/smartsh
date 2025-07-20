@@ -24,7 +24,10 @@ const MKDIR_MAPPING: CommandMapping = {
   ps: "New-Item -ItemType Directory",
   flagMap: {
     "-p": "-Force",
+    "-m": "-Mode",
+    "-v": "-Verbose",
   },
+  forceArgs: true,
 };
 
 const LS_MAPPING: CommandMapping = {
@@ -61,7 +64,11 @@ const MV_MAPPING: CommandMapping = {
 const TOUCH_MAPPING: CommandMapping = {
   unix: "touch",
   ps: "New-Item -ItemType File",
-  flagMap: {},
+  flagMap: {
+    "-a": "-AccessTime",
+    "-m": "-ModifyTime",
+    "-c": "-NoCreate",
+  },
   forceArgs: true,
 };
 
@@ -413,16 +420,20 @@ const RMDIR_MAPPING: CommandMapping = {
 const UPTIME_MAPPING: CommandMapping = {
   unix: "uptime",
   ps: "(Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime",
-  flagMap: {},
+  flagMap: {
+    "-p": "-Pretty",
+    "-s": "-Since",
+  },
   forceArgs: false,
 };
 
 const FREE_MAPPING: CommandMapping = {
   unix: "free",
-  ps: "Get-Counter '\\Memory\\Available MBytes' | Select-Object -ExpandProperty CounterSamples | Select-Object InstanceName,CookedValue",
+  ps: "Get-Counter '\\Memory\\Available MBytes' | Select-Object -ExpandProperty CounterSamples",
   flagMap: {
-    "-h": "", // human readable (handled in translation)
-    "-m": "", // MB format (handled in translation)
+    "-h": "-Human",
+    "-m": "-MB",
+    "-g": "-GB",
   },
   forceArgs: false,
 };
@@ -455,11 +466,9 @@ const SSH_MAPPING: CommandMapping = {
   unix: "ssh",
   ps: "ssh",
   flagMap: {
-    "-p": "-p",
-    "-i": "-i",
-    "-o": "-o",
-    "-L": "-L",
-    "-D": "-D",
+    "-p": "-Port",
+    "-i": "-IdentityFile",
+    "-X": "-X11Forwarding",
   },
   forceArgs: true,
 };
@@ -639,7 +648,7 @@ const TELNET_MAPPING: CommandMapping = {
   ps: "Test-NetConnection",
   flagMap: {
     "-p": "-Port",
-    "-l": "-LocalAddress",
+    "-l": "-Local",
   },
   forceArgs: true,
 };
@@ -682,11 +691,9 @@ const MAKE_MAPPING: CommandMapping = {
   unix: "make",
   ps: "make",
   flagMap: {
-    "-j": "-j",
-    "-f": "-f",
-    "-C": "-C",
-    "clean": "clean",
-    "install": "install",
+    "-j": "-Jobs",
+    "-f": "-File",
+    "-C": "-Directory",
   },
   forceArgs: false,
 };
@@ -695,11 +702,9 @@ const GCC_MAPPING: CommandMapping = {
   unix: "gcc",
   ps: "gcc",
   flagMap: {
-    "-o": "-o",
-    "-c": "-c",
-    "-g": "-g",
-    "-Wall": "-Wall",
-    "-std": "-std",
+    "-o": "-Output",
+    "-c": "-Compile",
+    "-g": "-Debug",
   },
   forceArgs: true,
 };
@@ -725,10 +730,6 @@ const GIT_MAPPING: CommandMapping = {
     "pull": "pull",
     "push": "push",
     "commit": "commit",
-    "status": "status",
-    "log": "log",
-    "branch": "branch",
-    "checkout": "checkout",
   },
   forceArgs: false,
 };
@@ -1056,20 +1057,22 @@ const TRACEROUTE_MAPPING: CommandMapping = {
   unix: "traceroute",
   ps: "Test-NetConnection -TraceRoute",
   flagMap: {
-    "maxhops": "-MaxHops",
-    "timeout": "-Timeout",
-    "resolve": "-Resolve",
+    "-n": "-NoResolve",
+    "-w": "-TimeoutSeconds",
+    "-q": "-Queries",
+    "-m": "-MaxHops",
   },
   forceArgs: true,
 };
 
 const IFCONFIG_MAPPING: CommandMapping = {
   unix: "ifconfig",
-  ps: "Get-NetAdapter | Select-Object Name, InterfaceDescription, Status, LinkSpeed",
+  ps: "Get-NetAdapter | Format-Table Name, Status, LinkSpeed, MacAddress -AutoSize",
   flagMap: {
-    "all": "-All",
-    "up": "-Status Up",
-    "down": "-Status Down",
+    "-a": "-All",
+    "-s": "-Statistics",
+    "-u": "-Up",
+    "-d": "-Down",
   },
   forceArgs: false,
 };
@@ -1118,27 +1121,7 @@ const RENICE_MAPPING: CommandMapping = {
   forceArgs: true,
 };
 
-// File System Tools
-const MOUNT_MAPPING: CommandMapping = {
-  unix: "mount",
-  ps: "Get-PSDrive | Where-Object {$_.Provider -like '*FileSystem*'} | Select-Object Name, Root, Used, Free",
-  flagMap: {
-    "all": "-All",
-    "type": "-Type",
-    "options": "-Options",
-  },
-  forceArgs: false,
-};
-
-const UMOUNT_MAPPING: CommandMapping = {
-  unix: "umount",
-  ps: "Remove-PSDrive",
-  flagMap: {
-    "force": "-Force",
-    "all": "-All",
-  },
-  forceArgs: true,
-};
+// File System Tools - mount and umount are system-specific and should not be translated
 
 // System Monitoring
 const IOSTAT_MAPPING: CommandMapping = {
@@ -1177,14 +1160,13 @@ const SAR_MAPPING: CommandMapping = {
 // Package Management
 const PIP_MAPPING: CommandMapping = {
   unix: "pip",
-  ps: "python -m pip",
+  ps: "pip",
   flagMap: {
     "install": "install",
     "uninstall": "uninstall",
     "list": "list",
     "show": "show",
-    "search": "search",
-    "upgrade": "upgrade",
+    "freeze": "freeze",
   },
   forceArgs: false,
 };
@@ -1195,10 +1177,10 @@ const NPM_MAPPING: CommandMapping = {
   flagMap: {
     "install": "install",
     "uninstall": "uninstall",
-    "list": "list",
-    "search": "search",
     "update": "update",
     "run": "run",
+    "test": "test",
+    "build": "build",
   },
   forceArgs: false,
 };
@@ -1207,12 +1189,12 @@ const YARN_MAPPING: CommandMapping = {
   unix: "yarn",
   ps: "yarn",
   flagMap: {
+    "install": "install",
     "add": "add",
     "remove": "remove",
-    "list": "list",
-    "search": "search",
-    "upgrade": "upgrade",
     "run": "run",
+    "test": "test",
+    "build": "build",
   },
   forceArgs: false,
 };
@@ -1247,12 +1229,12 @@ const CMAKE_MAPPING: CommandMapping = {
 // Additional System & Network Commands
 const ROUTE_MAPPING: CommandMapping = {
   unix: "route",
-  ps: "Get-NetRoute",
+  ps: "Get-NetRoute | Format-Table DestinationPrefix, NextHop, RouteMetric, InterfaceAlias -AutoSize",
   flagMap: {
-    "add": "Add-NetRoute",
-    "delete": "Remove-NetRoute",
-    "show": "Get-NetRoute",
-    "flush": "Remove-NetRoute -Confirm:$false",
+    "-n": "-NoResolve",
+    "-e": "-Extended",
+    "-v": "-Verbose",
+    "-A": "-AddressFamily",
   },
   forceArgs: false,
 };
@@ -1307,23 +1289,24 @@ const UNZIP_MAPPING: CommandMapping = {
 // Process & System Monitoring
 const LSOF_MAPPING: CommandMapping = {
   unix: "lsof",
-  ps: "Get-Process | ForEach-Object { Get-NetTCPConnection | Where-Object {$_.OwningProcess -eq $_.Id} }",
+  ps: "Get-Process | ForEach-Object { Get-NetTCPConnection | Where-Object {$_.OwningProcess -eq $_.Id} } | Format-Table LocalAddress, LocalPort, RemoteAddress, RemotePort, State, OwningProcess -AutoSize",
   flagMap: {
-    "i": "-LocalPort",
-    "p": "-Id",
-    "u": "-UserName",
-    "c": "-ProcessName",
+    "-i": "-Internet",
+    "-p": "-Process",
+    "-u": "-User",
+    "-c": "-Command",
   },
   forceArgs: false,
 };
 
 const STrace_MAPPING: CommandMapping = {
   unix: "strace",
-  ps: "Start-Process -FilePath",
+  ps: "Get-Process | ForEach-Object { Write-Host \"Process: $($_.ProcessName) (PID: $($_.Id))\" }",
   flagMap: {
-    "f": "-NoNewWindow",
-    "o": "-RedirectStandardOutput",
-    "e": "-RedirectStandardError",
+    "-p": "-ProcessId",
+    "-e": "-Event",
+    "-o": "-Output",
+    "-f": "-Follow",
   },
   forceArgs: true,
 };
@@ -1331,12 +1314,12 @@ const STrace_MAPPING: CommandMapping = {
 // Text Processing & Search
 const LOCATE_MAPPING: CommandMapping = {
   unix: "locate",
-  ps: "Get-ChildItem -Recurse -Filter",
+  ps: "Get-ChildItem -Recurse | Where-Object {$_.Name -like $args[0]} | Select-Object FullName",
   flagMap: {
-    "i": "-CaseSensitive:$false",
-    "n": "-First",
-    "l": "-First",
-    "c": "-Count",
+    "-i": "-CaseInsensitive",
+    "-n": "-Limit",
+    "-r": "-Regex",
+    "-q": "-Quiet",
   },
   forceArgs: true,
 };
@@ -1345,9 +1328,10 @@ const UPDATEDB_MAPPING: CommandMapping = {
   unix: "updatedb",
   ps: "Get-ChildItem -Recurse | ForEach-Object { $_.FullName } | Out-File -FilePath $env:TEMP\\locate.db -Encoding UTF8",
   flagMap: {
-    "v": "-Verbose",
-    "o": "-OutputFile",
-    "U": "-Path",
+    "-o": "-Output",
+    "-l": "-Local",
+    "-U": "-Update",
+    "-v": "-Verbose",
   },
   forceArgs: false,
 };
@@ -1355,24 +1339,24 @@ const UPDATEDB_MAPPING: CommandMapping = {
 // Network & Connectivity
 const TRACEPATH_MAPPING: CommandMapping = {
   unix: "tracepath",
-  ps: "Test-NetConnection -TraceRoute",
+  ps: "Test-NetConnection -TraceRoute -InformationLevel Detailed",
   flagMap: {
-    "n": "-ResolveDns:$false",
-    "b": "-ResolveDns",
-    "l": "-MaxHops",
-    "m": "-MaxHops",
+    "-n": "-NoResolve",
+    "-b": "-Bind",
+    "-m": "-MaxHops",
+    "-l": "-Local",
   },
   forceArgs: true,
 };
 
 const MTR_MAPPING: CommandMapping = {
   unix: "mtr",
-  ps: "Test-NetConnection -TraceRoute -InformationLevel Detailed",
+  ps: "Test-NetConnection -TraceRoute -InformationLevel Detailed | ForEach-Object { Write-Host \"Hop $($_.Hop): $($_.Address) - $($_.ResponseTime)ms\" }",
   flagMap: {
-    "n": "-ResolveDns:$false",
-    "r": "-ResolveDns",
-    "c": "-Count",
-    "i": "-Interval",
+    "-n": "-NoResolve",
+    "-r": "-Report",
+    "-c": "-Count",
+    "-i": "-Interval",
   },
   forceArgs: true,
 };
@@ -1382,10 +1366,10 @@ const BZIP2_MAPPING: CommandMapping = {
   unix: "bzip2",
   ps: "Compress-Archive -CompressionLevel Optimal",
   flagMap: {
-    "d": "-Decompress",
-    "k": "-KeepOriginal",
-    "v": "-Verbose",
-    "f": "-Force",
+    "-d": "-Decompress",
+    "-k": "-Keep",
+    "-f": "-Force",
+    "-v": "-Verbose",
   },
   forceArgs: true,
 };
@@ -1394,9 +1378,10 @@ const BUNZIP2_MAPPING: CommandMapping = {
   unix: "bunzip2",
   ps: "Expand-Archive",
   flagMap: {
-    "k": "-KeepOriginal",
-    "v": "-Verbose",
-    "f": "-Force",
+    "-k": "-Keep",
+    "-f": "-Force",
+    "-v": "-Verbose",
+    "-t": "-Test",
   },
   forceArgs: true,
 };
@@ -1404,25 +1389,25 @@ const BUNZIP2_MAPPING: CommandMapping = {
 // Text Processing
 const WC_MAPPING: CommandMapping = {
   unix: "wc",
-  ps: "Get-Content | Measure-Object -Line -Word -Character",
+  ps: "Measure-Object",
   flagMap: {
-    "l": "-Line",
-    "w": "-Word",
-    "c": "-Character",
-    "m": "-Character",
-    "L": "-Maximum",
+    "-l": "-Line",
+    "-w": "-Word",
+    "-c": "-Character",
+    "-m": "-Character",
+    "-L": "-Maximum",
   },
-  forceArgs: true,
+  forceArgs: false,
 };
 
 const HEAD_MAPPING: CommandMapping = {
   unix: "head",
   ps: "Get-Content | Select-Object -First",
   flagMap: {
-    "n": "-First",
-    "c": "-TotalCount",
-    "q": "-Quiet",
-    "v": "-Verbose",
+    "-n": "-First",
+    "-c": "-TotalCount",
+    "-q": "-Quiet",
+    "-v": "-Verbose",
   },
   forceArgs: true,
 };
@@ -1431,10 +1416,10 @@ const TAIL_MAPPING: CommandMapping = {
   unix: "tail",
   ps: "Get-Content | Select-Object -Last",
   flagMap: {
-    "n": "-Last",
-    "c": "-TotalCount",
-    "f": "-Wait",
-    "q": "-Quiet",
+    "-n": "-Last",
+    "-c": "-TotalCount",
+    "-f": "-Wait",
+    "-q": "-Quiet",
   },
   forceArgs: true,
 };
@@ -1463,6 +1448,520 @@ const DMESG_MAPPING: CommandMapping = {
   },
   forceArgs: false,
 };
+
+const CHROOT_MAPPING: CommandMapping = {
+  unix: "chroot",
+  ps: "Set-Location",
+  flagMap: {
+    "-u": "-User",
+    "-g": "-Group",
+  },
+  forceArgs: true,
+};
+
+const STAT_MAPPING: CommandMapping = {
+  unix: "stat",
+  ps: "Get-Item | Select-Object Name, Length, LastWriteTime, Attributes",
+  flagMap: {
+    "-f": "-Format",
+    "-t": "-Terse",
+    "-L": "-Follow",
+  },
+  forceArgs: true,
+};
+
+const AWK_MAPPING: CommandMapping = {
+  unix: "awk",
+  ps: "ForEach-Object",
+  flagMap: {
+    "-F": "-FieldSeparator",
+    "-v": "-Variable",
+    "-f": "-File",
+  },
+  forceArgs: true,
+};
+
+const SED_MAPPING: CommandMapping = {
+  unix: "sed",
+  ps: "-replace",
+  flagMap: {
+    "-n": "-NoPrint",
+    "-e": "-Expression",
+    "-f": "-File",
+    "-i": "-InPlace",
+  },
+  forceArgs: true,
+};
+
+const CUT_MAPPING: CommandMapping = {
+  unix: "cut",
+  ps: "ForEach-Object",
+  flagMap: {
+    "-d": "-Delimiter",
+    "-f": "-Fields",
+    "-c": "-Characters",
+  },
+  forceArgs: true,
+};
+
+const TR_MAPPING: CommandMapping = {
+  unix: "tr",
+  ps: "ForEach-Object",
+  flagMap: {
+    "-d": "-Delete",
+    "-s": "-Squeeze",
+    "-c": "-Complement",
+  },
+  forceArgs: true,
+};
+
+const IOTOP_MAPPING: CommandMapping = {
+  unix: "iotop",
+  ps: "Get-Process | Sort-Object IO -Descending | Select-Object -First 20",
+  flagMap: {
+    "-o": "-Only",
+    "-b": "-Batch",
+    "-n": "-Iterations",
+  },
+  forceArgs: false,
+};
+
+const HTOP_MAPPING: CommandMapping = {
+  unix: "htop",
+  ps: "Get-Process | Sort-Object CPU -Descending | Select-Object -First 20 | Format-Table -AutoSize",
+  flagMap: {
+    "-d": "-Delay",
+    "-u": "-User",
+    "-p": "-Process",
+  },
+  forceArgs: false,
+};
+
+const GLANCES_MAPPING: CommandMapping = {
+  unix: "glances",
+  ps: "Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, TotalPhysicalMemory",
+  flagMap: {
+    "-t": "-Time",
+    "-1": "-Once",
+    "-w": "-Web",
+  },
+  forceArgs: false,
+};
+
+const NETCAT_MAPPING: CommandMapping = {
+  unix: "nc",
+  ps: "Test-NetConnection",
+  flagMap: {
+    "-l": "-Listen",
+    "-p": "-Port",
+    "-v": "-Verbose",
+    "-w": "-Timeout",
+  },
+  forceArgs: true,
+};
+
+const SOCAT_MAPPING: CommandMapping = {
+  unix: "socat",
+  ps: "New-Object System.Net.Sockets.TcpClient",
+  flagMap: {
+    "-d": "-Debug",
+    "-v": "-Verbose",
+    "-t": "-Timeout",
+  },
+  forceArgs: true,
+};
+
+const NMAP_MAPPING: CommandMapping = {
+  unix: "nmap",
+  ps: "Test-NetConnection",
+  flagMap: {
+    "-p": "-Port",
+    "-s": "-Scan",
+    "-v": "-Verbose",
+  },
+  forceArgs: true,
+};
+
+// Additional 25 commands - Advanced System & Development
+const CRON_MAPPING: CommandMapping = {
+  unix: "cron",
+  ps: "Register-ScheduledJob",
+  flagMap: {
+    "-e": "-Edit",
+    "-l": "-List",
+    "-r": "-Remove",
+  },
+  forceArgs: true,
+};
+
+const CRONTAB_MAPPING: CommandMapping = {
+  unix: "crontab",
+  ps: "Get-ScheduledJob",
+  flagMap: {
+    "-e": "-Edit",
+    "-l": "-List",
+    "-r": "-Remove",
+    "-u": "-User",
+  },
+  forceArgs: true,
+};
+
+const AT_MAPPING: CommandMapping = {
+  unix: "at",
+  ps: "Register-ScheduledJob",
+  flagMap: {
+    "-f": "-FilePath",
+    "-m": "-Mail",
+    "-q": "-Queue",
+    "-t": "-Time",
+  },
+  forceArgs: true,
+};
+
+const ATQ_MAPPING: CommandMapping = {
+  unix: "atq",
+  ps: "Get-ScheduledJob",
+  flagMap: {
+    "-q": "-Queue",
+    "-v": "-Verbose",
+  },
+  forceArgs: false,
+};
+
+const ATRM_MAPPING: CommandMapping = {
+  unix: "atrm",
+  ps: "Unregister-ScheduledJob",
+  flagMap: {
+    "-q": "-Queue",
+  },
+  forceArgs: true,
+};
+
+const SYSCTL_MAPPING: CommandMapping = {
+  unix: "sysctl",
+  ps: "Get-ItemProperty",
+  flagMap: {
+    "-a": "-All",
+    "-w": "-Write",
+    "-p": "-Path",
+  },
+  forceArgs: true,
+};
+
+const MODPROBE_MAPPING: CommandMapping = {
+  unix: "modprobe",
+  ps: "Import-Module",
+  flagMap: {
+    "-r": "-Remove",
+    "-l": "-List",
+    "-v": "-Verbose",
+  },
+  forceArgs: true,
+};
+
+const LSMOD_MAPPING: CommandMapping = {
+  unix: "lsmod",
+  ps: "Get-Module",
+  flagMap: {
+    "-v": "-Verbose",
+  },
+  forceArgs: false,
+};
+
+const JOURNALCTL_MAPPING: CommandMapping = {
+  unix: "journalctl",
+  ps: "Get-WinEvent",
+  flagMap: {
+    "-f": "-Follow",
+    "-n": "-Newest",
+    "-u": "-Unit",
+    "-p": "-Priority",
+  },
+  forceArgs: true,
+};
+
+const LOGROTATE_MAPPING: CommandMapping = {
+  unix: "logrotate",
+  ps: "Compress-Archive",
+  flagMap: {
+    "-d": "-Debug",
+    "-f": "-Force",
+    "-s": "-State",
+  },
+  forceArgs: true,
+};
+
+const RSYSLOG_MAPPING: CommandMapping = {
+  unix: "rsyslog",
+  ps: "Write-EventLog",
+  flagMap: {
+    "-d": "-Debug",
+    "-f": "-Config",
+    "-n": "-NoFork",
+  },
+  forceArgs: true,
+};
+
+const IPTABLES_MAPPING: CommandMapping = {
+  unix: "iptables",
+  ps: "New-NetFirewallRule",
+  flagMap: {
+    "-A": "-Action",
+    "-D": "-Delete",
+    "-L": "-List",
+    "-F": "-Flush",
+  },
+  forceArgs: true,
+};
+
+const IP6TABLES_MAPPING: CommandMapping = {
+  unix: "ip6tables",
+  ps: "New-NetFirewallRule -AddressFamily IPv6",
+  flagMap: {
+    "-A": "-Action",
+    "-D": "-Delete",
+    "-L": "-List",
+    "-F": "-Flush",
+  },
+  forceArgs: true,
+};
+
+const UFW_MAPPING: CommandMapping = {
+  unix: "ufw",
+  ps: "Set-NetFirewallProfile",
+  flagMap: {
+    "enable": "-Enabled",
+    "disable": "-Disabled",
+    "status": "-Status",
+    "reload": "-Reload",
+  },
+  forceArgs: true,
+};
+
+const FAIL2BAN_MAPPING: CommandMapping = {
+  unix: "fail2ban",
+  ps: "Get-WinEvent -FilterHashtable @{LogName='Security'; ID=4625}",
+  flagMap: {
+    "start": "-Start",
+    "stop": "-Stop",
+    "status": "-Status",
+    "reload": "-Reload",
+  },
+  forceArgs: true,
+};
+
+const APACHE2CTL_MAPPING: CommandMapping = {
+  unix: "apache2ctl",
+  ps: "Get-Service -Name Apache*",
+  flagMap: {
+    "start": "Start-Service",
+    "stop": "Stop-Service",
+    "restart": "Restart-Service",
+    "status": "Get-Service",
+  },
+  forceArgs: true,
+};
+
+const NGINX_MAPPING: CommandMapping = {
+  unix: "nginx",
+  ps: "Get-Service -Name nginx",
+  flagMap: {
+    "-s": "-Signal",
+    "-t": "-Test",
+    "-v": "-Version",
+    "-V": "-VersionVerbose",
+  },
+  forceArgs: true,
+};
+
+const MYSQL_MAPPING: CommandMapping = {
+  unix: "mysql",
+  ps: "mysql",
+  flagMap: {
+    "-u": "-User",
+    "-p": "-Password",
+    "-h": "-Host",
+    "-P": "-Port",
+  },
+  forceArgs: true,
+};
+
+const PSQL_MAPPING: CommandMapping = {
+  unix: "psql",
+  ps: "psql",
+  flagMap: {
+    "-U": "-User",
+    "-h": "-Host",
+    "-p": "-Port",
+    "-d": "-Database",
+  },
+  forceArgs: true,
+};
+
+const REDIS_CLI_MAPPING: CommandMapping = {
+  unix: "redis-cli",
+  ps: "redis-cli",
+  flagMap: {
+    "-h": "-Host",
+    "-p": "-Port",
+    "-a": "-Auth",
+    "-n": "-Database",
+  },
+  forceArgs: true,
+};
+
+const DOCKER_MAPPING: CommandMapping = {
+  unix: "docker",
+  ps: "docker",
+  flagMap: {
+    "run": "run",
+    "build": "build",
+    "ps": "ps",
+    "images": "images",
+  },
+  forceArgs: false,
+};
+
+const KUBECTL_MAPPING: CommandMapping = {
+  unix: "kubectl",
+  ps: "kubectl",
+  flagMap: {
+    "get": "get",
+    "apply": "apply",
+    "delete": "delete",
+    "logs": "logs",
+  },
+  forceArgs: false,
+};
+
+const ANSIBLE_MAPPING: CommandMapping = {
+  unix: "ansible",
+  ps: "ansible",
+  flagMap: {
+    "-i": "-Inventory",
+    "-m": "-Module",
+    "-a": "-Args",
+    "-v": "-Verbose",
+  },
+  forceArgs: true,
+};
+
+const TERRAFORM_MAPPING: CommandMapping = {
+  unix: "terraform",
+  ps: "terraform",
+  flagMap: {
+    "init": "init",
+    "plan": "plan",
+    "apply": "apply",
+    "destroy": "destroy",
+  },
+  forceArgs: false,
+};
+
+const PACKER_MAPPING: CommandMapping = {
+  unix: "packer",
+  ps: "packer",
+  flagMap: {
+    "build": "build",
+    "validate": "validate",
+    "inspect": "inspect",
+    "version": "version",
+  },
+  forceArgs: false,
+};
+
+// Additional 25 commands - Specialized Tools & Utilities
+const VAGRANT_MAPPING: CommandMapping = {
+  unix: "vagrant",
+  ps: "vagrant",
+  flagMap: {
+    "up": "up",
+    "down": "down",
+    "halt": "halt",
+    "destroy": "destroy",
+    "ssh": "ssh",
+    "status": "status",
+  },
+  forceArgs: false,
+};
+
+const CHEF_MAPPING: CommandMapping = {
+  unix: "chef",
+  ps: "chef",
+  flagMap: {
+    "client": "client",
+    "solo": "solo",
+    "apply": "apply",
+    "generate": "generate",
+  },
+  forceArgs: true,
+};
+
+const PUPPET_MAPPING: CommandMapping = {
+  unix: "puppet",
+  ps: "puppet",
+  flagMap: {
+    "apply": "apply",
+    "agent": "agent",
+    "master": "master",
+    "cert": "cert",
+  },
+  forceArgs: true,
+};
+
+const SALT_MAPPING: CommandMapping = {
+  unix: "salt",
+  ps: "salt",
+  flagMap: {
+    "minion": "minion",
+    "master": "master",
+    "key": "key",
+    "run": "run",
+  },
+  forceArgs: true,
+};
+
+const SVN_MAPPING: CommandMapping = {
+  unix: "svn",
+  ps: "svn",
+  flagMap: {
+    "checkout": "checkout",
+    "update": "update",
+    "commit": "commit",
+    "status": "status",
+    "log": "log",
+  },
+  forceArgs: false,
+};
+
+const MERCURIAL_MAPPING: CommandMapping = {
+  unix: "hg",
+  ps: "hg",
+  flagMap: {
+    "clone": "clone",
+    "pull": "pull",
+    "push": "push",
+    "commit": "commit",
+    "status": "status",
+  },
+  forceArgs: false,
+};
+
+const PNPM_MAPPING: CommandMapping = {
+  unix: "pnpm",
+  ps: "pnpm",
+  flagMap: {
+    "install": "install",
+    "add": "add",
+    "remove": "remove",
+    "run": "run",
+    "test": "test",
+    "build": "build",
+  },
+  forceArgs: false,
+};
+
+// These mappings already exist, removing duplicates
 
 const BASE_MAPPINGS: CommandMapping[] = [
   RM_MAPPING,
@@ -1564,8 +2063,6 @@ const BASE_MAPPINGS: CommandMapping[] = [
   PGREP_MAPPING,
   KILLALL_MAPPING,
   RENICE_MAPPING,
-  MOUNT_MAPPING,
-  UMOUNT_MAPPING,
   IOSTAT_MAPPING,
   VMSTAT_MAPPING,
   SAR_MAPPING,
@@ -1592,6 +2089,57 @@ const BASE_MAPPINGS: CommandMapping[] = [
   TAIL_MAPPING,
   LSB_RELEASE_MAPPING,
   DMESG_MAPPING,
+  CHROOT_MAPPING,
+  STAT_MAPPING,
+  AWK_MAPPING,
+  SED_MAPPING,
+  CUT_MAPPING,
+  TR_MAPPING,
+  IOTOP_MAPPING,
+  HTOP_MAPPING,
+  GLANCES_MAPPING,
+  NETCAT_MAPPING,
+  SOCAT_MAPPING,
+  NMAP_MAPPING,
+  CRON_MAPPING,
+  CRONTAB_MAPPING,
+  AT_MAPPING,
+  ATQ_MAPPING,
+  ATRM_MAPPING,
+  SYSCTL_MAPPING,
+  MODPROBE_MAPPING,
+  LSMOD_MAPPING,
+  JOURNALCTL_MAPPING,
+  LOGROTATE_MAPPING,
+  RSYSLOG_MAPPING,
+  IPTABLES_MAPPING,
+  IP6TABLES_MAPPING,
+  UFW_MAPPING,
+  FAIL2BAN_MAPPING,
+  APACHE2CTL_MAPPING,
+  NGINX_MAPPING,
+  MYSQL_MAPPING,
+  PSQL_MAPPING,
+  REDIS_CLI_MAPPING,
+  DOCKER_MAPPING,
+  KUBECTL_MAPPING,
+  ANSIBLE_MAPPING,
+  TERRAFORM_MAPPING,
+  PACKER_MAPPING,
+  VAGRANT_MAPPING,
+  CHEF_MAPPING,
+  PUPPET_MAPPING,
+  SALT_MAPPING,
+  GIT_MAPPING,
+  SVN_MAPPING,
+  MERCURIAL_MAPPING,
+  PNPM_MAPPING,
+  VAGRANT_MAPPING,
+  CHEF_MAPPING,
+  PUPPET_MAPPING,
+  SALT_MAPPING,
+  SVN_MAPPING,
+  MERCURIAL_MAPPING,
 ];
 
 const EXTRA_MAPPINGS: CommandMapping[] = [];

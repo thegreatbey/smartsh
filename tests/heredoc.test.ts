@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { translateCommand } from "../src/translate";
 
-const ps7 = { type: "powershell", supportsConditionalConnectors: true } as const;
+const ps7 = { type: "powershell", supportsConditionalConnectors: true, needsUnixTranslation: true, targetShell: "powershell" } as const;
 
 describe("translateCommand – here-doc preservation", () => {
   test("cat with here-doc is left untouched", () => {

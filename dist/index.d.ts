@@ -2,15 +2,23 @@ declare function lintCommand(cmd: string): {
     unsupported: string[];
     suggestions: string[];
 };
-type ShellType = "bash" | "powershell" | "cmd";
+type ShellType = "bash" | "powershell" | "cmd" | "ash" | "dash" | "zsh" | "fish" | "ksh" | "tcsh";
 interface ShellInfo {
-    type: "bash" | "powershell" | "cmd";
+    type: ShellType;
     /**
      * Whether this shell natively understands Unix-style conditional connectors (&&, ||).
      */
     supportsConditionalConnectors: boolean;
     /** Only set for PowerShell */
     version?: number | null;
+    /**
+     * Whether this shell needs Unix command translations
+     */
+    needsUnixTranslation: boolean;
+    /**
+     * The target shell for command translations
+     */
+    targetShell: "powershell" | "cmd" | "bash" | "ash" | "dash" | "zsh" | "fish" | "ksh" | "tcsh";
 }
 /**
  * Best-effort detection of the current interactive shell and its capabilities.

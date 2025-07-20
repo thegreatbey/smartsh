@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { translateCommand } from "../src/translate";
 
-const ps7 = { type: "powershell", supportsConditionalConnectors: true } as const;
+const ps7 = { type: "powershell", supportsConditionalConnectors: true, needsUnixTranslation: true, targetShell: "powershell" } as const;
 
 describe("New command mappings", () => {
   test("cut -d , -f 2", () => {

@@ -37,14 +37,28 @@ function runInShell(shellInfo: ReturnType<typeof detectShell>, command: string):
     return;
   }
 
-  // For bash / cmd (with native connector support) we can delegate to their shells via spawn with `shell` option.
-  let shellOption: string | true = true;
   if (shellInfo.type === "cmd") {
-    shellOption = "cmd.exe";
+    // For CMD, use cmd.exe explicitly
+    const child = spawn(command, {
+      shell: "cmd.exe",
+      stdio: "inherit",
+    });
+
+    child.on("error", (err: Error) => {
+      console.error(`${TOOL_NAME}: Failed to start command:`, err);
+    });
+
+    child.on("exit", (code: number | null, signal: NodeJS.Signals | null) => {
+      if (signal) process.kill(process.pid, signal);
+      else process.exit(code ?? 0);
+    });
+    return;
   }
 
+  // For Unix-like shells (bash, ash, dash, zsh, fish, ksh, tcsh), use the system shell
+  // These shells natively support Unix commands and conditional connectors
   const child = spawn(command, {
-    shell: shellOption,
+    shell: true, // Use the system default shell
     stdio: "inherit",
   });
 

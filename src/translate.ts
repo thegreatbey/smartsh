@@ -1,6 +1,7 @@
 console.log('src/translate.ts LOADED');
 import { translateSingleUnixSegment } from "./unixMappings";
 import { tokenizeWithPos, tagTokenRoles } from "./tokenize";
+import { translateForShell } from "./shellMappings";
 
 // -----------------------------
 // Lint support helpers
@@ -129,16 +130,24 @@ function getFlagSuggestions(cmd: string, unknownFlag: string, allowedFlags: Set<
   return suggestions;
 }
 
-export type ShellType = "bash" | "powershell" | "cmd";
+export type ShellType = "bash" | "powershell" | "cmd" | "ash" | "dash" | "zsh" | "fish" | "ksh" | "tcsh";
 
 export interface ShellInfo {
-  type: "bash" | "powershell" | "cmd";
+  type: ShellType;
   /**
    * Whether this shell natively understands Unix-style conditional connectors (&&, ||).
    */
   supportsConditionalConnectors: boolean;
   /** Only set for PowerShell */
   version?: number | null;
+  /**
+   * Whether this shell needs Unix command translations
+   */
+  needsUnixTranslation: boolean;
+  /**
+   * The target shell for command translations
+   */
+  targetShell: "powershell" | "cmd" | "bash" | "ash" | "dash" | "zsh" | "fish" | "ksh" | "tcsh";
 }
 
 // Allow users to override shell detection via environment variable.
@@ -204,11 +213,15 @@ export function detectShell(): ShellInfo {
         type: "powershell",
         version,
         supportsConditionalConnectors: version !== null && version >= 7,
+        needsUnixTranslation: true,
+        targetShell: "powershell",
       };
     }
     return {
       type: OVERRIDE_SHELL,
       supportsConditionalConnectors: true,
+      needsUnixTranslation: true,
+      targetShell: OVERRIDE_SHELL,
     };
   }
 
@@ -217,7 +230,7 @@ export function detectShell(): ShellInfo {
     const isCmd = Boolean(process.env.PROMPT) && !process.env.PSModulePath;
     if (isCmd) {
       debugLog("Detected CMD via PROMPT env.");
-      return { type: "cmd", supportsConditionalConnectors: true };
+      return { type: "cmd", supportsConditionalConnectors: true, needsUnixTranslation: true, targetShell: "cmd" };
     }
 
     // If PSModulePath is set we are likely in PowerShell (cmd.exe doesn't set it)
@@ -227,6 +240,8 @@ export function detectShell(): ShellInfo {
         type: "powershell",
         version,
         supportsConditionalConnectors: version !== null && version >= 7,
+        needsUnixTranslation: true,
+        targetShell: "powershell",
       };
     }
 
@@ -234,14 +249,14 @@ export function detectShell(): ShellInfo {
     const comspec = process.env.ComSpec?.toLowerCase();
     if (comspec?.includes("cmd.exe")) {
       debugLog("Detected CMD via ComSpec path.");
-      return { type: "cmd", supportsConditionalConnectors: true };
+      return { type: "cmd", supportsConditionalConnectors: true, needsUnixTranslation: true, targetShell: "cmd" };
     }
 
     // Detect Git Bash / WSL bash via SHELL env even on Windows
     const shellEnv = process.env.SHELL?.toLowerCase();
     if (shellEnv && shellEnv.includes("bash")) {
       debugLog("Detected Bash on Windows via SHELL env:", shellEnv);
-      return { type: "bash", supportsConditionalConnectors: true };
+      return { type: "bash", supportsConditionalConnectors: true, needsUnixTranslation: true, targetShell: "bash" };
     }
 
     // Fallback to PowerShell
@@ -250,15 +265,85 @@ export function detectShell(): ShellInfo {
       type: "powershell",
       version,
       supportsConditionalConnectors: version !== null && version >= 7,
+      needsUnixTranslation: true,
+      targetShell: "powershell",
     };
   }
 
-  // 3. Non-Windows: try SHELL env for debug output but all POSIX-like shells support connectors
+  // 3. Non-Windows: detect specific shell types
   const shellPath = process.env.SHELL;
   if (shellPath) {
     debugLog(`Detected Unix shell via SHELL env: ${shellPath}`);
+    
+    // Extract shell name from path
+    const shellName = shellPath.split('/').pop()?.toLowerCase() || '';
+    
+    // Map shell names to types
+    if (shellName.includes('ash') || shellName.includes('busybox')) {
+      return { 
+        type: "ash", 
+        supportsConditionalConnectors: true, 
+        needsUnixTranslation: false, // ash is already Unix-like
+        targetShell: "ash" 
+      };
+    }
+    if (shellName.includes('dash')) {
+      return { 
+        type: "dash", 
+        supportsConditionalConnectors: true, 
+        needsUnixTranslation: false, // dash is already Unix-like
+        targetShell: "dash" 
+      };
+    }
+    if (shellName.includes('zsh')) {
+      return { 
+        type: "zsh", 
+        supportsConditionalConnectors: true, 
+        needsUnixTranslation: false, // zsh is already Unix-like
+        targetShell: "zsh" 
+      };
+    }
+    if (shellName.includes('fish')) {
+      return { 
+        type: "fish", 
+        supportsConditionalConnectors: true, 
+        needsUnixTranslation: false, // fish is already Unix-like
+        targetShell: "fish" 
+      };
+    }
+    if (shellName.includes('ksh')) {
+      return { 
+        type: "ksh", 
+        supportsConditionalConnectors: true, 
+        needsUnixTranslation: false, // ksh is already Unix-like
+        targetShell: "ksh" 
+      };
+    }
+    if (shellName.includes('tcsh')) {
+      return { 
+        type: "tcsh", 
+        supportsConditionalConnectors: true, 
+        needsUnixTranslation: false, // tcsh is already Unix-like
+        targetShell: "tcsh" 
+      };
+    }
+    if (shellName.includes('bash')) {
+      return { 
+        type: "bash", 
+        supportsConditionalConnectors: true, 
+        needsUnixTranslation: false, // bash is already Unix-like
+        targetShell: "bash" 
+      };
+    }
   }
-  return { type: "bash", supportsConditionalConnectors: true };
+  
+  // Fallback to bash for Unix-like systems
+  return { 
+    type: "bash", 
+    supportsConditionalConnectors: true, 
+    needsUnixTranslation: false, // assume Unix-like environment
+    targetShell: "bash" 
+  };
 }
 
 /**
@@ -267,14 +352,16 @@ export function detectShell(): ShellInfo {
  * (currently: legacy PowerShell < 7).
  */
 export function translateCommand(command: string, shell: ShellInfo): string {
-  // If PowerShell, we may need to translate Unix commands regardless of version
-  if (shell.type === "powershell") {
+  // If shell needs Unix translation, translate commands
+  if (shell.needsUnixTranslation) {
     // First translate any supported Unix commands inside each segment
     const parts = splitByConnectors(command).map((part) => {
       if (part === "&&" || part === "||") return part;
       // Handle pipe-separated subsegments
       const pipeParts = splitByPipe(part);
-      const translatedPipeParts = pipeParts.map(translateSingleUnixSegment);
+      const translatedPipeParts = pipeParts.map((segment) => {
+        return translateSingleUnixSegmentForShell(segment, shell.targetShell);
+      });
       return translatedPipeParts.join(" | ");
     });
     const unixTranslated = parts.join(" ");
@@ -282,14 +369,20 @@ export function translateCommand(command: string, shell: ShellInfo): string {
     // Handle backtick-escaped operators for PowerShell compatibility
     const finalResult = handleBacktickEscapedOperators(unixTranslated);
 
+    // Handle conditional connectors for shells that don't support them natively
     if (shell.supportsConditionalConnectors) {
       return finalResult;
     }
 
-    return translateForLegacyPowerShell(finalResult);
+    // Legacy PowerShell needs special handling for conditional connectors
+    if (shell.type === "powershell") {
+      return translateForLegacyPowerShell(finalResult);
+    }
+
+    return finalResult;
   }
 
-  // Non-PowerShell shells: just return original
+  // Shells that don't need translation (Unix-like shells): just return original
   return command;
 }
 
@@ -388,6 +481,55 @@ function translateForLegacyPowerShell(command: string): string {
 
 // Re-export for unit tests only (not part of public API)
 export { splitByConnectors as __test_splitByConnectors };
+
+/**
+ * Translate a single Unix segment for a specific target shell
+ */
+function translateSingleUnixSegmentForShell(segment: string, targetShell: string): string {
+  // For PowerShell, use the existing translation logic
+  if (targetShell === "powershell") {
+    return translateSingleUnixSegment(segment);
+  }
+
+  // For other shells, use the new shell-specific translation
+  if (segment.includes("${")) {
+    return segment;
+  }
+
+  const trimmed = segment.trim();
+  if (trimmed.startsWith("(") || trimmed.startsWith("{")) {
+    return segment;
+  }
+
+  // Tokenise using the shared helpers
+  const roleTokens = tagTokenRoles(tokenizeWithPos(segment));
+  if (roleTokens.length === 0) return segment;
+
+  let hasHereDoc = roleTokens.some((t) => t.value === "<<");
+  const tokensValues = roleTokens.map((t) => t.value);
+  for (let i = 0; i < tokensValues.length - 1; i++) {
+    if (tokensValues[i] === "<" && tokensValues[i + 1] === "<") {
+      hasHereDoc || (hasHereDoc = true);
+      break;
+    }
+  }
+
+  if (hasHereDoc) {
+    return segment;
+  }
+
+  const tokens = roleTokens.map((t) => t.value);
+  const flagTokens = roleTokens.filter((t) => t.role === "flag").map((t) => t.value);
+  const argTokens = roleTokens.filter((t) => t.role === "arg").map((t) => t.value);
+
+  // First command token gives us the Unix command name
+  const cmdToken = roleTokens.find((t) => t.role === "cmd");
+  if (!cmdToken) return segment;
+  const cmd = cmdToken.value;
+
+  // Use shell-specific translation
+  return translateForShell(cmd, targetShell, flagTokens, argTokens);
+}
 
 /**
  * Quote backtick-escaped operators for PowerShell compatibility
