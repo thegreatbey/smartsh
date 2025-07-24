@@ -15,7 +15,7 @@ export interface BidirectionalMapping {
 }
 
 // PowerShell → Unix mappings
-const POWERSHELL_TO_UNIX_MAPPINGS: BidirectionalMapping[] = [
+export const POWERSHELL_TO_UNIX_MAPPINGS: BidirectionalMapping[] = [
   // File Operations
   {
     unix: "rm",
@@ -5057,19 +5057,30 @@ export function translateBidirectional(
   // Get the target command for this shell
   const targetCommand = (mapping as any)[targetShell] || command;
   
-  // Get flag mappings for this direction
-  const sourceFlagMap = mapping.flagMappings[sourceFormat as keyof typeof mapping.flagMappings] || {};
-  
   // Translate flags
   let translatedFlags = "";
   for (const flag of flagTokens) {
-    const mappedFlag = sourceFlagMap[flag];
-    if (mappedFlag !== undefined) {
-      if (mappedFlag) translatedFlags += " " + mappedFlag;
+    let mappedFlag = flag; // Default to original flag
+    
+    if (targetShell === "unix") {
+      // If target is Unix, use the source shell's flag mapping directly
+      const sourceFlagMap = mapping.flagMappings[sourceFormat as keyof typeof mapping.flagMappings] || {};
+      mappedFlag = sourceFlagMap[flag] || flag;
     } else {
-      // Unknown flag, preserve original
-      translatedFlags += " " + flag;
+      // If target is PowerShell or CMD, we need to reverse the mapping
+      // Find which source flag maps to this flag in the target shell's mapping
+      const targetFlagMap = mapping.flagMappings[targetShell as keyof typeof mapping.flagMappings] || {};
+      
+      // Look for a mapping that goes from target shell to this flag
+      for (const [targetFlag, unixFlag] of Object.entries(targetFlagMap)) {
+        if (unixFlag === flag) {
+          mappedFlag = targetFlag;
+          break;
+        }
+      }
     }
+    
+    if (mappedFlag) translatedFlags += " " + mappedFlag;
   }
 
   // Build final command

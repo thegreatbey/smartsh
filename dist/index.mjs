@@ -9304,15 +9304,22 @@ function translateBidirectional(command, sourceFormat, targetShell, flagTokens, 
     return command;
   }
   const targetCommand = mapping[targetShell] || command;
-  const sourceFlagMap = mapping.flagMappings[sourceFormat] || {};
   let translatedFlags = "";
   for (const flag of flagTokens) {
-    const mappedFlag = sourceFlagMap[flag];
-    if (mappedFlag !== void 0) {
-      if (mappedFlag) translatedFlags += " " + mappedFlag;
+    let mappedFlag = flag;
+    if (targetShell === "unix") {
+      const sourceFlagMap = mapping.flagMappings[sourceFormat] || {};
+      mappedFlag = sourceFlagMap[flag] || flag;
     } else {
-      translatedFlags += " " + flag;
+      const targetFlagMap = mapping.flagMappings[targetShell] || {};
+      for (const [targetFlag, unixFlag] of Object.entries(targetFlagMap)) {
+        if (unixFlag === flag) {
+          mappedFlag = targetFlag;
+          break;
+        }
+      }
     }
+    if (mappedFlag) translatedFlags += " " + mappedFlag;
   }
   const finalCommand = `${targetCommand}${translatedFlags}`.trim();
   return [finalCommand, ...argTokens].join(" ");
@@ -9766,7 +9773,10 @@ function parseInput(command) {
   };
 }
 export {
+  POWERSHELL_TO_UNIX_MAPPINGS,
   detectShell,
+  getBidirectionalMapping,
   lintCommand,
+  translateBidirectional,
   translateCommand
 };

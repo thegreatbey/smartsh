@@ -32,4 +32,19 @@ declare function detectShell(): ShellInfo;
  */
 declare function translateCommand(command: string, shell: ShellInfo): string;
 
-export { type ShellInfo, type ShellType, detectShell, lintCommand, translateCommand };
+interface BidirectionalMapping {
+    unix: string;
+    powershell: string;
+    cmd: string;
+    flagMappings: {
+        unix: Record<string, string>;
+        powershell: Record<string, string>;
+        cmd: Record<string, string>;
+    };
+    forceArgs?: boolean;
+}
+declare const POWERSHELL_TO_UNIX_MAPPINGS: BidirectionalMapping[];
+declare function getBidirectionalMapping(command: string, sourceFormat: string): BidirectionalMapping | undefined;
+declare function translateBidirectional(command: string, sourceFormat: string, targetShell: string, flagTokens: string[], argTokens: string[]): string;
+
+export { type BidirectionalMapping, POWERSHELL_TO_UNIX_MAPPINGS, type ShellInfo, type ShellType, detectShell, getBidirectionalMapping, lintCommand, translateBidirectional, translateCommand };
