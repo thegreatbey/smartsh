@@ -2815,6 +2815,12 @@ var init_shellMappings = __esm({
             "-fr": "-Recurse -Force",
             "-r": "-Recurse",
             "-f": "-Force"
+          },
+          bash: {
+            "-rf": "-rf",
+            "-fr": "-fr",
+            "-r": "-r",
+            "-f": "-f"
           }
         },
         forceArgs: true
@@ -2842,6 +2848,12 @@ var init_shellMappings = __esm({
             "-al": "-Force",
             "-a": "-Force",
             "-l": ""
+          },
+          bash: {
+            "-la": "-la",
+            "-al": "-al",
+            "-a": "-a",
+            "-l": "-l"
           }
         }
       },
@@ -2870,6 +2882,13 @@ var init_shellMappings = __esm({
             "-f": "-Force",
             "-rf": "-Recurse -Force",
             "-fr": "-Recurse -Force"
+          },
+          bash: {
+            "-r": "-r",
+            "-R": "-R",
+            "-f": "-f",
+            "-rf": "-rf",
+            "-fr": "-fr"
           }
         },
         forceArgs: true
@@ -2887,7 +2906,8 @@ var init_shellMappings = __esm({
         tcsh: "mv",
         flagMap: {
           cmd: {},
-          ps: {}
+          ps: {},
+          bash: {}
         },
         forceArgs: true
       },
@@ -2908,6 +2928,9 @@ var init_shellMappings = __esm({
           },
           ps: {
             "-p": "-Force"
+          },
+          bash: {
+            "-p": "-p"
           }
         }
       },
@@ -2924,7 +2947,8 @@ var init_shellMappings = __esm({
         tcsh: "cat",
         flagMap: {
           cmd: {},
-          ps: {}
+          ps: {},
+          bash: {}
         },
         forceArgs: true
       },
@@ -2949,6 +2973,11 @@ var init_shellMappings = __esm({
             "-i": "-CaseSensitive:$false",
             "-n": "-LineNumber",
             "-v": "-NotMatch"
+          },
+          bash: {
+            "-i": "-i",
+            "-n": "-n",
+            "-v": "-v"
           }
         },
         forceArgs: true
@@ -2966,7 +2995,8 @@ var init_shellMappings = __esm({
         tcsh: "pwd",
         flagMap: {
           cmd: {},
-          ps: {}
+          ps: {},
+          bash: {}
         },
         forceArgs: false
       },
@@ -2983,7 +3013,8 @@ var init_shellMappings = __esm({
         tcsh: "clear",
         flagMap: {
           cmd: {},
-          ps: {}
+          ps: {},
+          bash: {}
         },
         forceArgs: false
       },
@@ -3000,7 +3031,8 @@ var init_shellMappings = __esm({
         tcsh: "whoami",
         flagMap: {
           cmd: {},
-          ps: {}
+          ps: {},
+          bash: {}
         },
         forceArgs: false
       },
@@ -4289,12 +4321,275 @@ var init_shellMappings = __esm({
   }
 });
 
+// src/bidirectionalMappings.ts
+function getBidirectionalMapping(command, sourceFormat) {
+  return POWERSHELL_TO_UNIX_MAPPINGS.find((m) => m[sourceFormat] === command);
+}
+function translateBidirectional(command, sourceFormat, targetShell, flagTokens, argTokens) {
+  const mapping = getBidirectionalMapping(command, sourceFormat);
+  if (!mapping) {
+    return command;
+  }
+  const targetCommand = mapping[targetShell] || command;
+  const sourceFlagMap = mapping.flagMappings[sourceFormat] || {};
+  let translatedFlags = "";
+  for (const flag of flagTokens) {
+    const mappedFlag = sourceFlagMap[flag];
+    if (mappedFlag !== void 0) {
+      if (mappedFlag) translatedFlags += " " + mappedFlag;
+    } else {
+      translatedFlags += " " + flag;
+    }
+  }
+  const finalCommand = `${targetCommand}${translatedFlags}`.trim();
+  return [finalCommand, ...argTokens].join(" ");
+}
+var POWERSHELL_TO_UNIX_MAPPINGS;
+var init_bidirectionalMappings = __esm({
+  "src/bidirectionalMappings.ts"() {
+    "use strict";
+    POWERSHELL_TO_UNIX_MAPPINGS = [
+      {
+        unix: "rm",
+        powershell: "Remove-Item",
+        cmd: "del",
+        flagMappings: {
+          unix: {
+            "-rf": "-rf",
+            "-fr": "-fr",
+            "-r": "-r",
+            "-f": "-f"
+          },
+          powershell: {
+            "-Recurse -Force": "-rf",
+            "-Force -Recurse": "-rf",
+            "-Recurse": "-r",
+            "-Force": "-f"
+          },
+          cmd: {
+            "/s /q": "-rf",
+            "/q /s": "-rf",
+            "/s": "-r",
+            "/q": "-f"
+          }
+        },
+        forceArgs: true
+      },
+      {
+        unix: "ls",
+        powershell: "Get-ChildItem",
+        cmd: "dir",
+        flagMappings: {
+          unix: {
+            "-la": "-la",
+            "-al": "-al",
+            "-a": "-a",
+            "-l": "-l"
+          },
+          powershell: {
+            "-Force": "-la",
+            "": "-l"
+          },
+          cmd: {
+            "/a": "-la",
+            "": "-l"
+          }
+        }
+      },
+      {
+        unix: "cp",
+        powershell: "Copy-Item",
+        cmd: "copy",
+        flagMappings: {
+          unix: {
+            "-r": "-r",
+            "-R": "-R",
+            "-f": "-f",
+            "-rf": "-rf",
+            "-fr": "-fr"
+          },
+          powershell: {
+            "-Recurse": "-r",
+            "-Force": "-f",
+            "-Recurse -Force": "-rf",
+            "-Force -Recurse": "-rf"
+          },
+          cmd: {
+            "/s": "-r",
+            "/y": "-f",
+            "/s /y": "-rf",
+            "/y /s": "-rf"
+          }
+        },
+        forceArgs: true
+      },
+      {
+        unix: "mv",
+        powershell: "Move-Item",
+        cmd: "move",
+        flagMappings: {
+          unix: {},
+          powershell: {},
+          cmd: {}
+        },
+        forceArgs: true
+      },
+      {
+        unix: "mkdir",
+        powershell: "New-Item -ItemType Directory",
+        cmd: "md",
+        flagMappings: {
+          unix: {
+            "-p": "-p"
+          },
+          powershell: {
+            "-Force": "-p"
+          },
+          cmd: {
+            "": "-p"
+          }
+        }
+      },
+      {
+        unix: "cat",
+        powershell: "Get-Content",
+        cmd: "type",
+        flagMappings: {
+          unix: {},
+          powershell: {},
+          cmd: {}
+        },
+        forceArgs: true
+      },
+      {
+        unix: "grep",
+        powershell: "Select-String",
+        cmd: "findstr",
+        flagMappings: {
+          unix: {
+            "-i": "-i",
+            "-n": "-n",
+            "-v": "-v"
+          },
+          powershell: {
+            "-CaseSensitive:$false": "-i",
+            "-LineNumber": "-n",
+            "-NotMatch": "-v"
+          },
+          cmd: {
+            "/i": "-i",
+            "/n": "-n",
+            "/v": "-v"
+          }
+        },
+        forceArgs: true
+      },
+      {
+        unix: "pwd",
+        powershell: "Get-Location",
+        cmd: "cd",
+        flagMappings: {
+          unix: {},
+          powershell: {},
+          cmd: {}
+        },
+        forceArgs: false
+      },
+      {
+        unix: "clear",
+        powershell: "Clear-Host",
+        cmd: "cls",
+        flagMappings: {
+          unix: {},
+          powershell: {},
+          cmd: {}
+        },
+        forceArgs: false
+      },
+      {
+        unix: "whoami",
+        powershell: "$env:USERNAME",
+        cmd: "echo %USERNAME%",
+        flagMappings: {
+          unix: {},
+          powershell: {},
+          cmd: {}
+        },
+        forceArgs: false
+      },
+      {
+        unix: "hostname",
+        powershell: "$env:COMPUTERNAME",
+        cmd: "echo %COMPUTERNAME%",
+        flagMappings: {
+          unix: {},
+          powershell: {},
+          cmd: {}
+        },
+        forceArgs: false
+      },
+      {
+        unix: "echo",
+        powershell: "Write-Host",
+        cmd: "echo",
+        flagMappings: {
+          unix: {},
+          powershell: {},
+          cmd: {}
+        },
+        forceArgs: false
+      },
+      {
+        unix: "sleep",
+        powershell: "Start-Sleep",
+        cmd: "timeout",
+        flagMappings: {
+          unix: {},
+          powershell: {},
+          cmd: {}
+        },
+        forceArgs: true
+      },
+      {
+        unix: "ps",
+        powershell: "Get-Process",
+        cmd: "tasklist",
+        flagMappings: {
+          unix: {},
+          powershell: {},
+          cmd: {}
+        },
+        forceArgs: false
+      },
+      {
+        unix: "kill",
+        powershell: "Stop-Process",
+        cmd: "taskkill",
+        flagMappings: {
+          unix: {
+            "-9": "-9"
+          },
+          powershell: {
+            "-Force": "-9"
+          },
+          cmd: {
+            "/f": "-9"
+          }
+        },
+        forceArgs: true
+      }
+    ];
+  }
+});
+
 // src/translate.ts
 var translate_exports = {};
 __export(translate_exports, {
   __test_splitByConnectors: () => splitByConnectors,
+  detectInputFormat: () => detectInputFormat,
   detectShell: () => detectShell,
   lintCommand: () => lintCommand,
+  parseInput: () => parseInput,
   translateCommand: () => translateCommand
 });
 function lintCommand(cmd) {
@@ -4536,7 +4831,8 @@ function detectShell() {
   };
 }
 function translateCommand(command, shell) {
-  if (shell.needsUnixTranslation) {
+  const inputInfo = parseInput(command);
+  if (inputInfo.format === "unix" && shell.needsUnixTranslation) {
     const parts = splitByConnectors(command).map((part) => {
       if (part === "&&" || part === "||") return part;
       const pipeParts = splitByPipe(part);
@@ -4554,6 +4850,24 @@ function translateCommand(command, shell) {
       return translateForLegacyPowerShell(finalResult);
     }
     return finalResult;
+  }
+  if (inputInfo.format === "powershell" || inputInfo.format === "cmd") {
+    const parts = splitByConnectors(command).map((part) => {
+      if (part === "&&" || part === "||") return part;
+      const pipeParts = splitByPipe(part);
+      const translatedPipeParts = pipeParts.map((segment) => {
+        return translateSingleSegmentBidirectional(segment, inputInfo.format, shell.targetShell);
+      });
+      return translatedPipeParts.join(" | ");
+    });
+    const translated = parts.join(" ");
+    if (shell.supportsConditionalConnectors) {
+      return translated;
+    }
+    if (shell.type === "powershell") {
+      return translateForLegacyPowerShell(translated);
+    }
+    return translated;
   }
   return command;
 }
@@ -4655,6 +4969,53 @@ function translateSingleUnixSegmentForShell(segment, targetShell) {
   const cmd = cmdToken.value;
   return translateForShell(cmd, targetShell, flagTokens, argTokens);
 }
+function translateSingleSegmentBidirectional(segment, sourceFormat, targetShell) {
+  if (targetShell === "powershell") {
+    return translateSingleUnixSegment(segment);
+  }
+  if (segment.includes("${")) {
+    return segment;
+  }
+  const trimmed = segment.trim();
+  if (trimmed.startsWith("(") || trimmed.startsWith("{")) {
+    return segment;
+  }
+  const roleTokens = tagTokenRoles(tokenizeWithPos(segment));
+  if (roleTokens.length === 0) return segment;
+  let hasHereDoc = roleTokens.some((t) => t.value === "<<");
+  const tokensValues = roleTokens.map((t) => t.value);
+  for (let i = 0; i < tokensValues.length - 1; i++) {
+    if (tokensValues[i] === "<" && tokensValues[i + 1] === "<") {
+      hasHereDoc || (hasHereDoc = true);
+      break;
+    }
+  }
+  if (hasHereDoc) {
+    return segment;
+  }
+  const tokens = roleTokens.map((t) => t.value);
+  const flagTokens = roleTokens.filter((t) => t.role === "flag").map((t) => t.value);
+  const argTokens = roleTokens.filter((t) => t.role === "arg").map((t) => t.value);
+  const cmdToken = roleTokens.find((t) => t.role === "cmd");
+  if (!cmdToken) return segment;
+  const cmd = cmdToken.value;
+  return translateBidirectional(cmd, sourceFormat, targetShell, flagTokens, argTokens);
+}
+function detectInputFormat(command) {
+  if (command.includes("Remove-Item") || command.includes("Get-ChildItem") || command.includes("Copy-Item") || command.includes("Move-Item") || command.includes("New-Item") || command.includes("Get-Content") || command.includes("Select-String") || command.includes("Write-Host") || command.includes("Clear-Host") || command.includes("Get-Location") || command.includes("$env:") || command.includes("Invoke-")) {
+    return "powershell";
+  }
+  if (command.includes("del") || command.includes("dir") || command.includes("copy") || command.includes("move") || command.includes("md") || command.includes("type") || command.includes("findstr") || command.includes("cls") || command.includes("cd") || command.includes("echo %") || command.includes("tasklist") || command.includes("taskkill")) {
+    return "cmd";
+  }
+  return "unix";
+}
+function parseInput(command) {
+  return {
+    format: detectInputFormat(command),
+    command
+  };
+}
 var DYNAMIC_CMDS, SUPPORTED_COMMANDS, _a, OVERRIDE_SHELL, DEBUG;
 var init_translate = __esm({
   "src/translate.ts"() {
@@ -4662,6 +5023,7 @@ var init_translate = __esm({
     init_unixMappings();
     init_tokenize();
     init_shellMappings();
+    init_bidirectionalMappings();
     init_unixMappings();
     console.log("src/translate.ts LOADED");
     DYNAMIC_CMDS = [

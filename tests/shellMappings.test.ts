@@ -79,6 +79,18 @@ describe("Shell-specific translations", () => {
       expect(translateForShell("rm", "bash", ["-rf"], ["dist"])).toBe("rm -rf dist");
     });
 
+    test("applies bash flag mappings correctly", () => {
+      expect(translateForShell("rm", "bash", ["-r", "-f"], ["dist"])).toBe("rm -r -f dist");
+    });
+
+    test("handles bash ls flags correctly", () => {
+      expect(translateForShell("ls", "bash", ["-la"], [])).toBe("ls -la");
+    });
+
+    test("handles bash cp flags correctly", () => {
+      expect(translateForShell("cp", "bash", ["-rf"], ["src", "dest"])).toBe("cp -rf src dest");
+    });
+
     test("preserves original commands for ash", () => {
       expect(translateForShell("ls", "ash", ["-la"], [])).toBe("ls -la");
     });

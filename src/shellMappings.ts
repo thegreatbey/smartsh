@@ -40,6 +40,12 @@ const CMD_MAPPINGS: ShellCommandMapping[] = [
         "-fr": "-Recurse -Force",
         "-r": "-Recurse",
         "-f": "-Force",
+      },
+      bash: {
+        "-rf": "-rf",
+        "-fr": "-fr",
+        "-r": "-r",
+        "-f": "-f",
       }
     },
     forceArgs: true,
@@ -67,6 +73,12 @@ const CMD_MAPPINGS: ShellCommandMapping[] = [
         "-al": "-Force",
         "-a": "-Force",
         "-l": "",
+      },
+      bash: {
+        "-la": "-la",
+        "-al": "-al",
+        "-a": "-a",
+        "-l": "-l",
       }
     },
   },
@@ -95,6 +107,13 @@ const CMD_MAPPINGS: ShellCommandMapping[] = [
         "-f": "-Force",
         "-rf": "-Recurse -Force",
         "-fr": "-Recurse -Force",
+      },
+      bash: {
+        "-r": "-r",
+        "-R": "-R",
+        "-f": "-f",
+        "-rf": "-rf",
+        "-fr": "-fr",
       }
     },
     forceArgs: true,
@@ -112,7 +131,8 @@ const CMD_MAPPINGS: ShellCommandMapping[] = [
     tcsh: "mv",
     flagMap: {
       cmd: {},
-      ps: {}
+      ps: {},
+      bash: {}
     },
     forceArgs: true,
   },
@@ -133,6 +153,9 @@ const CMD_MAPPINGS: ShellCommandMapping[] = [
       },
       ps: {
         "-p": "-Force",
+      },
+      bash: {
+        "-p": "-p",
       }
     },
   },
@@ -149,7 +172,8 @@ const CMD_MAPPINGS: ShellCommandMapping[] = [
     tcsh: "cat",
     flagMap: {
       cmd: {},
-      ps: {}
+      ps: {},
+      bash: {}
     },
     forceArgs: true,
   },
@@ -174,6 +198,11 @@ const CMD_MAPPINGS: ShellCommandMapping[] = [
         "-i": "-CaseSensitive:$false",
         "-n": "-LineNumber",
         "-v": "-NotMatch",
+      },
+      bash: {
+        "-i": "-i",
+        "-n": "-n",
+        "-v": "-v",
       }
     },
     forceArgs: true,
@@ -191,7 +220,8 @@ const CMD_MAPPINGS: ShellCommandMapping[] = [
     tcsh: "pwd",
     flagMap: {
       cmd: {},
-      ps: {}
+      ps: {},
+      bash: {}
     },
     forceArgs: false,
   },
@@ -208,7 +238,8 @@ const CMD_MAPPINGS: ShellCommandMapping[] = [
     tcsh: "clear",
     flagMap: {
       cmd: {},
-      ps: {}
+      ps: {},
+      bash: {}
     },
     forceArgs: false,
   },
@@ -225,7 +256,8 @@ const CMD_MAPPINGS: ShellCommandMapping[] = [
     tcsh: "whoami",
     flagMap: {
       cmd: {},
-      ps: {}
+      ps: {},
+      bash: {}
     },
     forceArgs: false,
   },

@@ -2,6 +2,7 @@ console.log('src/translate.ts LOADED');
 import { translateSingleUnixSegment } from "./unixMappings";
 import { tokenizeWithPos, tagTokenRoles } from "./tokenize";
 import { translateForShell } from "./shellMappings";
+import { translateBidirectional } from "./bidirectionalMappings";
 
 // -----------------------------
 // Lint support helpers
@@ -352,8 +353,11 @@ export function detectShell(): ShellInfo {
  * (currently: legacy PowerShell < 7).
  */
 export function translateCommand(command: string, shell: ShellInfo): string {
-  // If shell needs Unix translation, translate commands
-  if (shell.needsUnixTranslation) {
+  // Detect input format
+  const inputInfo = parseInput(command);
+  
+  // If input is Unix and shell needs translation, use existing logic
+  if (inputInfo.format === "unix" && shell.needsUnixTranslation) {
     // First translate any supported Unix commands inside each segment
     const parts = splitByConnectors(command).map((part) => {
       if (part === "&&" || part === "||") return part;
@@ -380,6 +384,32 @@ export function translateCommand(command: string, shell: ShellInfo): string {
     }
 
     return finalResult;
+  }
+
+  // If input is PowerShell or CMD, use bidirectional translation
+  if (inputInfo.format === "powershell" || inputInfo.format === "cmd") {
+    const parts = splitByConnectors(command).map((part) => {
+      if (part === "&&" || part === "||") return part;
+      // Handle pipe-separated subsegments
+      const pipeParts = splitByPipe(part);
+      const translatedPipeParts = pipeParts.map((segment) => {
+        return translateSingleSegmentBidirectional(segment, inputInfo.format, shell.targetShell);
+      });
+      return translatedPipeParts.join(" | ");
+    });
+    const translated = parts.join(" ");
+
+    // Handle conditional connectors for shells that don't support them natively
+    if (shell.supportsConditionalConnectors) {
+      return translated;
+    }
+
+    // Legacy PowerShell needs special handling for conditional connectors
+    if (shell.type === "powershell") {
+      return translateForLegacyPowerShell(translated);
+    }
+
+    return translated;
   }
 
   // Shells that don't need translation (Unix-like shells): just return original
@@ -532,6 +562,55 @@ function translateSingleUnixSegmentForShell(segment: string, targetShell: string
 }
 
 /**
+ * Translate a single segment using bidirectional translation
+ */
+function translateSingleSegmentBidirectional(segment: string, sourceFormat: string, targetShell: string): string {
+  // For PowerShell, use the existing translation logic
+  if (targetShell === "powershell") {
+    return translateSingleUnixSegment(segment);
+  }
+
+  // For other shells, use the new bidirectional translation
+  if (segment.includes("${")) {
+    return segment;
+  }
+
+  const trimmed = segment.trim();
+  if (trimmed.startsWith("(") || trimmed.startsWith("{")) {
+    return segment;
+  }
+
+  // Tokenise using the shared helpers
+  const roleTokens = tagTokenRoles(tokenizeWithPos(segment));
+  if (roleTokens.length === 0) return segment;
+
+  let hasHereDoc = roleTokens.some((t) => t.value === "<<");
+  const tokensValues = roleTokens.map((t) => t.value);
+  for (let i = 0; i < tokensValues.length - 1; i++) {
+    if (tokensValues[i] === "<" && tokensValues[i + 1] === "<") {
+      hasHereDoc || (hasHereDoc = true);
+      break;
+    }
+  }
+
+  if (hasHereDoc) {
+    return segment;
+  }
+
+  const tokens = roleTokens.map((t) => t.value);
+  const flagTokens = roleTokens.filter((t) => t.role === "flag").map((t) => t.value);
+  const argTokens = roleTokens.filter((t) => t.role === "arg").map((t) => t.value);
+
+  // First command token gives us the command name
+  const cmdToken = roleTokens.find((t) => t.role === "cmd");
+  if (!cmdToken) return segment;
+  const cmd = cmdToken.value;
+
+  // Use bidirectional translation
+  return translateBidirectional(cmd, sourceFormat, targetShell, flagTokens, argTokens);
+}
+
+/**
  * Quote backtick-escaped operators for PowerShell compatibility
  */
 function quoteBacktickEscapedOperators(segment: string): string {
@@ -539,4 +618,61 @@ function quoteBacktickEscapedOperators(segment: string): string {
   return segment
     .replace(/\`&\`&/g, "'&&'")
     .replace(/\`\|\`\|/g, "'||'");
+} 
+
+export type InputFormat = "unix" | "powershell" | "cmd";
+
+export interface InputInfo {
+  format: InputFormat;
+  command: string;
+}
+
+/**
+ * Detect the input format of a command
+ */
+export function detectInputFormat(command: string): InputFormat {
+  // PowerShell indicators
+  if (command.includes("Remove-Item") || 
+      command.includes("Get-ChildItem") || 
+      command.includes("Copy-Item") ||
+      command.includes("Move-Item") ||
+      command.includes("New-Item") ||
+      command.includes("Get-Content") ||
+      command.includes("Select-String") ||
+      command.includes("Write-Host") ||
+      command.includes("Clear-Host") ||
+      command.includes("Get-Location") ||
+      command.includes("$env:") ||
+      command.includes("Invoke-")) {
+    return "powershell";
+  }
+
+  // CMD indicators
+  if (command.includes("del") || 
+      command.includes("dir") || 
+      command.includes("copy") ||
+      command.includes("move") ||
+      command.includes("md") ||
+      command.includes("type") ||
+      command.includes("findstr") ||
+      command.includes("cls") ||
+      command.includes("cd") ||
+      command.includes("echo %") ||
+      command.includes("tasklist") ||
+      command.includes("taskkill")) {
+    return "cmd";
+  }
+
+  // Default to Unix (most common case)
+  return "unix";
+}
+
+/**
+ * Parse command into InputInfo
+ */
+export function parseInput(command: string): InputInfo {
+  return {
+    format: detectInputFormat(command),
+    command: command
+  };
 } 
