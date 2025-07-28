@@ -1,6 +1,6 @@
 console.log('src/translate.ts LOADED');
 import { translateSingleUnixSegment } from "./unixMappings";
-import { tokenizeWithPos, tagTokenRoles } from "./tokenize";
+import { tokenizeWithPos, tagTokenRoles, tokenizeWithPosEnhancedAndRoles } from "./tokenize";
 import { translateForShell } from "./shellMappings";
 import { translateBidirectional } from "./bidirectionalMappings";
 
@@ -58,7 +58,7 @@ export function lintCommand(cmd: string): { unsupported: string[]; suggestions: 
       if (!trimmed) continue;
       if (trimmed.startsWith("(") || trimmed.startsWith("{")) continue; // skip subshell/grouping
 
-      const tokens = tagTokenRoles(tokenizeWithPos(trimmed));
+      const tokens = tokenizeWithPosEnhancedAndRoles(trimmed);
       const cmdTok = tokens.find((t) => t.role === "cmd");
       if (!cmdTok) continue;
       const c = cmdTok.value;
@@ -427,7 +427,7 @@ function handleBacktickEscapedOperators(cmd: string): string {
 // Modify splitByConnectors to handle backslash-escaped quotes inside quoted strings.
 function splitByConnectors(cmd: string): (string | "&&" | "||")[] {
   const parts: (string | "&&" | "||")[] = [];
-  const tokens = tokenizeWithPos(cmd);
+  const tokens = tokenizeWithPosEnhancedAndRoles(cmd);
   let segmentStart = 0;
 
   let parenDepth = 0;
@@ -518,7 +518,29 @@ export { splitByConnectors as __test_splitByConnectors };
 function translateSingleUnixSegmentForShell(segment: string, targetShell: string): string {
   // For PowerShell, use the existing translation logic
   if (targetShell === "powershell") {
+    // Parse the segment
+    const roleTokens = tokenizeWithPosEnhancedAndRoles(segment);
+    if (roleTokens.length === 0) return segment;
+    const cmdToken = roleTokens.find((t) => t.role === "cmd");
+    if (!cmdToken) return segment;
+    const cmd = cmdToken.reconstructedValue;
+    const flagTokens = roleTokens.filter((t) => t.role === "flag").map((t) => t.reconstructedValue);
+    const argTokens = roleTokens.filter((t) => t.role === "arg").map((t) => t.reconstructedValue);
+
+    // For certain commands that need complex dynamic logic, always use dynamic translation
+    if (cmd === "cut" || cmd === "find" || cmd === "awk" || cmd === "sed") {
+      return translateSingleUnixSegment(segment);
+    }
+
+    // Try static mapping with parsed tokens
+    const result = translateForShell(cmd, targetShell, flagTokens, argTokens);
+    
+    // If static mapping didn't translate, use dynamic logic (compare to input segment, not just cmd)
+    if (result === cmd || result === segment) {
     return translateSingleUnixSegment(segment);
+    }
+    
+    return result;
   }
 
   // For other shells, use the new shell-specific translation
@@ -532,7 +554,7 @@ function translateSingleUnixSegmentForShell(segment: string, targetShell: string
   }
 
   // Tokenise using the shared helpers
-  const roleTokens = tagTokenRoles(tokenizeWithPos(segment));
+  const roleTokens = tokenizeWithPosEnhancedAndRoles(segment);
   if (roleTokens.length === 0) return segment;
 
   let hasHereDoc = roleTokens.some((t) => t.value === "<<");
@@ -548,14 +570,14 @@ function translateSingleUnixSegmentForShell(segment: string, targetShell: string
     return segment;
   }
 
-  const tokens = roleTokens.map((t) => t.value);
-  const flagTokens = roleTokens.filter((t) => t.role === "flag").map((t) => t.value);
-  const argTokens = roleTokens.filter((t) => t.role === "arg").map((t) => t.value);
+  const tokens = roleTokens.map((t) => t.reconstructedValue);
+  const flagTokens = roleTokens.filter((t) => t.role === "flag").map((t) => t.reconstructedValue);
+  const argTokens = roleTokens.filter((t) => t.role === "arg").map((t) => t.reconstructedValue);
 
   // First command token gives us the Unix command name
   const cmdToken = roleTokens.find((t) => t.role === "cmd");
   if (!cmdToken) return segment;
-  const cmd = cmdToken.value;
+  const cmd = cmdToken.reconstructedValue;
 
   // Use shell-specific translation
   return translateForShell(cmd, targetShell, flagTokens, argTokens);
@@ -565,12 +587,7 @@ function translateSingleUnixSegmentForShell(segment: string, targetShell: string
  * Translate a single segment using bidirectional translation
  */
 function translateSingleSegmentBidirectional(segment: string, sourceFormat: string, targetShell: string): string {
-  // For PowerShell, use the existing translation logic
-  if (targetShell === "powershell") {
-    return translateSingleUnixSegment(segment);
-  }
-
-  // For other shells, use the new bidirectional translation
+  // Handle special cases that don't need translation
   if (segment.includes("${")) {
     return segment;
   }
@@ -581,7 +598,7 @@ function translateSingleSegmentBidirectional(segment: string, sourceFormat: stri
   }
 
   // Tokenise using the shared helpers
-  const roleTokens = tagTokenRoles(tokenizeWithPos(segment));
+  const roleTokens = tokenizeWithPosEnhancedAndRoles(segment);
   if (roleTokens.length === 0) return segment;
 
   let hasHereDoc = roleTokens.some((t) => t.value === "<<");
@@ -597,17 +614,45 @@ function translateSingleSegmentBidirectional(segment: string, sourceFormat: stri
     return segment;
   }
 
-  const tokens = roleTokens.map((t) => t.value);
-  const flagTokens = roleTokens.filter((t) => t.role === "flag").map((t) => t.value);
-  const argTokens = roleTokens.filter((t) => t.role === "arg").map((t) => t.value);
+  const tokens = roleTokens.map((t) => t.reconstructedValue);
+  const flagTokens = roleTokens.filter((t) => t.role === "flag").map((t) => t.reconstructedValue);
+  const argTokens = roleTokens.filter((t) => t.role === "arg").map((t) => t.reconstructedValue);
 
   // First command token gives us the command name
   const cmdToken = roleTokens.find((t) => t.role === "cmd");
   if (!cmdToken) return segment;
-  const cmd = cmdToken.value;
+  const cmd = cmdToken.reconstructedValue;
 
-  // Use bidirectional translation
-  return translateBidirectional(cmd, sourceFormat, targetShell, flagTokens, argTokens);
+  // For Unix → PowerShell translation, use the existing logic (preserves existing functionality)
+  if (sourceFormat === "unix" && targetShell === "powershell") {
+    // Always use existing logic for find command (it has special handling for -delete and -exec)
+    if (cmd === "find") {
+      return translateSingleUnixSegment(segment);
+    }
+    // For other commands, try bidirectional first, fallback to existing logic
+    const result = translateBidirectional(cmd, sourceFormat, targetShell, flagTokens, argTokens);
+    if (result === cmd) {
+      return translateSingleUnixSegment(segment);
+    }
+    return result;
+  }
+
+  // For same-shell translations (no translation needed)
+  if ((sourceFormat === "unix" && targetShell === "bash") ||
+      (sourceFormat === "unix" && targetShell === "ash") ||
+      (sourceFormat === "unix" && targetShell === "dash") ||
+      (sourceFormat === "unix" && targetShell === "zsh") ||
+      (sourceFormat === "unix" && targetShell === "fish") ||
+      (sourceFormat === "unix" && targetShell === "ksh") ||
+      (sourceFormat === "unix" && targetShell === "tcsh") ||
+      (sourceFormat === "powershell" && targetShell === "powershell") ||
+      (sourceFormat === "cmd" && targetShell === "cmd")) {
+    return segment; // No translation needed
+  }
+
+  // Use bidirectional translation for all other cases (PowerShell → Unix, CMD → Unix, etc.)
+  const result = translateBidirectional(cmd, sourceFormat, targetShell, flagTokens, argTokens);
+  return result;
 }
 
 /**
@@ -647,19 +692,35 @@ export function detectInputFormat(command: string): InputFormat {
     return "powershell";
   }
 
-  // CMD indicators
-  if (command.includes("del") || 
-      command.includes("dir") || 
-      command.includes("copy") ||
-      command.includes("move") ||
-      command.includes("md") ||
-      command.includes("type") ||
-      command.includes("findstr") ||
-      command.includes("cls") ||
-      command.includes("cd") ||
-      command.includes("echo %") ||
-      command.includes("tasklist") ||
-      command.includes("taskkill")) {
+  // Unix command indicators (check these before CMD to avoid false positives)
+  if (/\bfind\b/.test(command) || 
+      /\bgrep\b/.test(command) || 
+      /\bls\b/.test(command) ||
+      /\bcat\b/.test(command) ||
+      /\brm\b/.test(command) ||
+      /\bcp\b/.test(command) ||
+      /\bmv\b/.test(command) ||
+      /\bmkdir\b/.test(command) ||
+      /\bchmod\b/.test(command) ||
+      /\bchown\b/.test(command) ||
+      /\bsed\b/.test(command) ||
+      /\bawk\b/.test(command)) {
+    return "unix";
+  }
+
+  // CMD indicators (check for word boundaries to avoid false positives)
+  if (/\bdel\b/.test(command) || 
+      /\bdir\b/.test(command) || 
+      /\bcopy\b/.test(command) ||
+      /\bmove\b/.test(command) ||
+      /\bmd\b/.test(command) ||
+      /\btype\b/.test(command) ||
+      /\bfindstr\b/.test(command) ||
+      /\bcls\b/.test(command) ||
+      /\bcd\b/.test(command) ||
+      /\becho\s+%/.test(command) ||
+      /\btasklist\b/.test(command) ||
+      /\btaskkill\b/.test(command)) {
     return "cmd";
   }
 

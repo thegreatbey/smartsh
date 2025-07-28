@@ -4360,29 +4360,7 @@ export const POWERSHELL_TO_UNIX_MAPPINGS: BidirectionalMapping[] = [
     },
     forceArgs: true,
   },
-  {
-    unix: "find",
-    powershell: "Get-ChildItem",
-    cmd: "dir",
-    flagMappings: {
-      unix: {
-        "-name": "-name",
-        "-type": "-type",
-        "-size": "-size",
-        "-mtime": "-mtime",
-      },
-      powershell: {
-        "-Recurse": "-r",
-        "-Name": "-name",
-        "-Filter": "",
-      },
-      cmd: {
-        "/s": "/s",
-        "/b": "/b",
-      }
-    },
-    forceArgs: true,
-  },
+
   {
     unix: "df",
     powershell: "Get-WmiObject",
@@ -5067,15 +5045,22 @@ export function translateBidirectional(
       const sourceFlagMap = mapping.flagMappings[sourceFormat as keyof typeof mapping.flagMappings] || {};
       mappedFlag = sourceFlagMap[flag] || flag;
     } else {
-      // If target is PowerShell or CMD, we need to reverse the mapping
-      // Find which source flag maps to this flag in the target shell's mapping
+      // If target is PowerShell or CMD, we need to do a two-step translation:
+      // 1. Find what Unix flag the source flag maps to
+      // 2. Find what target shell flag maps to that Unix flag
+      const sourceFlagMap = mapping.flagMappings[sourceFormat as keyof typeof mapping.flagMappings] || {};
       const targetFlagMap = mapping.flagMappings[targetShell as keyof typeof mapping.flagMappings] || {};
       
-      // Look for a mapping that goes from target shell to this flag
-      for (const [targetFlag, unixFlag] of Object.entries(targetFlagMap)) {
-        if (unixFlag === flag) {
-          mappedFlag = targetFlag;
-          break;
+      // Step 1: Get the Unix equivalent of the source flag
+      const unixFlag = sourceFlagMap[flag];
+      
+      if (unixFlag) {
+        // Step 2: Find the target shell flag that maps to this Unix flag
+        for (const [targetFlag, targetUnixFlag] of Object.entries(targetFlagMap)) {
+          if (targetUnixFlag === unixFlag) {
+            mappedFlag = targetFlag;
+            break;
+          }
         }
       }
     }

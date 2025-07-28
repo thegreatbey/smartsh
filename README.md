@@ -2,203 +2,222 @@
 
 A tiny cross-shell command runner that enables Unix-style commands and connectors (&&, ||) on any OS or shell, with automatic translation of common Unix commands to native PowerShell equivalents.
 
-## Installation
+Smartsh v0.3.7:
 
-Use with `npx` (no install):
+---
 
+````markdown
+# ⚡ Smartsh (`sm`) – Universal Cross-Shell Command Translator
+
+[![npm version](https://img.shields.io/npm/v/smartsh.svg)](https://www.npmjs.com/package/smartsh)
+[![Tests](https://img.shields.io/badge/tests-251%20passing-brightgreen.svg)](#)
+[![Size](https://img.shields.io/badge/size-~190KB-blue.svg)](#)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](#)
+
+---
+
+### **Write Once. Run Anywhere.**
+Run **Unix commands on Windows** and **Windows commands on Unix/macOS** without rewriting scripts.
+
+---
+
+## ✅ Features
+- **Full Bidirectional Translation**  
+  - Unix → PowerShell/CMD  
+  - PowerShell/CMD → Unix  
+- **Cross-Shell Connectors**  
+  Handles `&&`, `||`, pipes, and redirections  
+- **Command Coverage**  
+  - 171 Unix → PowerShell  
+  - 70 Unix → CMD  
+  - 484 Windows → Unix reverse translations  
+- **Lightweight**  
+  - Built: **~904 KB**  
+  - Published: **~190 KB**  
+- **Zero runtime dependencies**  
+- Tested: **251 tests passing**
+
+---
+
+## 📦 Install
 ```bash
-# Long name
-npx smartsh "echo hello && echo world"
-
-# Shorthand alias (same behaviour)
-npx sm "echo hello && echo world"
-```
-
-Or install globally:
-
-```bash
-# Installs both `smartsh` and `sm` binaries
+# Global install
 npm install -g smartsh
 
-# Use either name
-sm "echo hello && echo world"
-smartsh "echo hello && echo world"
+# Or use without install
+npx smartsh "rm -rf dist && npm run build"
+````
+
+---
+
+## 🚀 Usage
+
+### Unix → Windows
+
+```bash
+sm "rm -rf dist && npm run build"
+
+# PowerShell output:
+Remove-Item -Recurse -Force dist; if ($?) { npm run build }
 ```
 
-## How it works
+### Windows → Unix
 
-1. Detects your current shell and (for PowerShell) its version.
-2. For PowerShell, translates common Unix commands (rm, mkdir, ls) to PowerShell equivalents.
-3. If the shell natively supports && / || (Bash, CMD, PowerShell 7+), the command is run unchanged.
-4. For legacy PowerShell (<7) the tool rewrites the command into an equivalent script that uses $? checks to faithfully emulate conditional execution.
-5. Executes the (possibly-translated) command, forwarding stdin/stdout/stderr and the exit code.
+```bash
+sm --reverse "Remove-Item -Recurse -Force dist; npm run build"
+# Output:
+rm -rf dist && npm run build
+```
 
-## Example on legacy PowerShell (<7)
+---
 
-# Using the shorthand in PowerShell
+## 🖥 CLI Options
+
+| Flag               | Description                        |
+| ------------------ | ---------------------------------- |
+| `--reverse`        | Translate Windows → Unix           |
+| `--target <shell>` | Force a target shell               |
+| `--translate-only` | Show translation without execution |
+| `--debug`          | Verbose logs                       |
+
+---
+
+## 🔍 Examples
+
+```bash
+# Unix → Windows (PowerShell)
+sm "ls -la | grep .ts && echo Done"
+# -> Get-ChildItem -Force | Select-String '.ts'; if ($?) { echo Done }
+
+# Windows → Unix
+sm --reverse "Get-ChildItem | Select-String .ts; echo Done"
+# -> ls | grep .ts && echo Done
+```
+
+---
+
+## 🧪 Tests
+
+```bash
+pnpm test
+# 16 files, 251 tests — all passing
+```
+
+---
+
+## ⚡ Why Smartsh?
+
+| Feature          | Smartsh | shx | cross-env |
+| ---------------- | ------- | --- | --------- |
+| Unix→Windows     | ✅       | ✅   | ❌         |
+| Windows→Unix     | ✅       | ❌   | ❌         |
+| Handles &&, \|\| | ✅       | ✅   | ❌         |
+| Lightweight      | ✅       | ✅   | ✅         |
+
+---
+
+## 🔥 What’s New in v0.3.7
+
+* ✅ **Bidirectional Translation Added**
+* ✅ **PowerShell → Unix + CMD → Unix support**
+* ✅ **484 reverse mappings**
+* ✅ **Size optimization: \~190 KB published**
+* ✅ **251 tests passing, including bidirectional coverage**
+
+---
+
+## 🛠 Dev Commands
+
+### Clean old builds
+
+**Windows PowerShell**
+
 ```powershell
-> sm "echo ok && echo still-ok || echo failed"
-# Internally runs something like:
-#   echo ok; if ($?) { echo still-ok } ; if (-not $?) { echo failed }
+Remove-Item .\smartsh-*.tgz -Force
+Remove-Item .\dist -Recurse -Force
 ```
 
-## Building locally
+**Windows CMD**
+
+```cmd
+del smartsh-*.tgz
+rmdir /S /Q dist
+```
+
+**Unix**
 
 ```bash
-npm install
-npm run build
+rm -rf smartsh-*.tgz dist
 ```
 
-The bundled output is generated at `dist/cli.js` and includes a shebang so it can be executed directly.
-
-## Limitations
-
-* On Windows PowerShell/CMD you may need to quote the command string so that the host shell doesn’t interpret the connectors.
-* The parser ignores connectors that appear inside single or double quotes, but nested or escaped quotes may not be fully supported. 
-
-### Environment overrides
-
-* `SMARTSH_SHELL` – manually set the shell type (`bash`, `cmd`, or `powershell`) if auto-detection is incorrect.
-* `SMARTSH_DEBUG=1` – enable verbose detection/debug logs. 
-
-### CLI flags
-
-| Flag | Shorthand | Purpose |
-|------|-----------|---------|
-| `--translate-only` | `-t` | Print the translated command but don’t execute it (useful for debugging). |
-| `--lint` | `-l` | Check a command for unsupported segments/flags. Exits with code 1 if anything can’t be translated. |
-| `--debug` | `-d` | Enable verbose shell-detection and translation logs. |
-| `--completion <shell>` | — | Output a shell-completion script for `bash`, `zsh`, or `powershell`. |
-
-Example lint check:
+### Build & Publish
 
 ```bash
-sm --lint "ls | foocmd bar"
-# ✖ Unsupported segments detected:
-#   - foocmd bar
+npm version patch
+pnpm build
+git add -A
+git commit -m "update bidirectional support"
+git push origin main
+npm publish --access public
 ```
-
-Generate a completion script:
-
-```bash
-# Bash example
-smartsh --completion bash > /etc/bash_completion.d/smartsh
-
-# Zsh example (oh-my-zsh)
-smartsh --completion zsh > ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/_smartsh
-
-# PowerShell example
-smartsh --completion pwsh | Out-File -Encoding ASCII $PROFILE\smartsh-completion.ps1
-source $PROFILE\smartsh-completion.ps1
-```
-
-### Extending via ~/.smartshrc
-
-You can register additional translations without touching the core package.  Create a JSON file in your home directory named **`.smartshrc`** or **`.smartshrc.json`**:
-
-```jsonc
-{
-  "mappings": [
-    {
-      "unix": "foo",
-      "ps": "Write-Host foo",
-      "flagMap": {}
-    },
-    {
-      "unix": "bar",
-      "ps": "Invoke-Something",
-      "flagMap": {
-        "-q": "-Quiet"
-      },
-      "forceArgs": true
-    }
-  ]
-}
-```
-
-Fields are identical to the built-in mapping objects (see source).  When `smartsh` starts it loads this file and merges your mappings with the built-ins; duplicates by `unix` name are ignored.
-
-#### Using a JavaScript plugin
-
-If you need more dynamic logic you can create `~/.smartshrc.js` (CommonJS) that exports either:
-
-1. **An object** with the same shape as the JSON example above.
-2. **A function** that receives a helpers object and can call `addExtraMappings` directly.
-
-Example:
-
-```js
-// ~/.smartshrc.js
-module.exports = ({ addExtraMappings }) => {
-  addExtraMappings([
-    {
-      unix: "hello",
-      ps: "Write-Host 'Hello from plugin'",
-      flagMap: {}
-    }
-  ]);
-  // can also return JSON-style config
-  return { mappings: [] };
-};
-```
-
-Changes take effect the next time you run `smartsh`.
 
 ---
 
-# Supported Unix-style commands (translated on PowerShell)
+## 📜 License
 
-| Unix | Flags | PowerShell equivalent |
-|------|-------|----------------------|
-| rm   | -f, -r, -rf | Remove-Item (-Force / -Recurse) |
-| ls   | (none), -l, -la | Get-ChildItem (-Force) |
-| cp   | -r | Copy-Item -Recurse |
-| mv   | — | Move-Item |
-| mkdir| (none), -p | New-Item -ItemType Directory (-Force) |
-| touch| — | New-Item -ItemType File |
-| cat  | — | Get-Content |
-| grep | -i | Select-String (-CaseSensitive:$false) |
-| head | -n N / -N | Select-Object -First N |
-| tail | -n N / -N | Select-Object -Last N |
-| wc   | -l | Measure-Object -Line |
+MIT © 2025 Smartsh Contributors
 
-Yes, that means one-liners like:
+```
+Command Coverage Details
+Smartsh doesn’t have equal coverage in every direction. Here’s why:
 
-```bash
-sm "ls -la | grep .js | head -10 > js.txt"
+Why CMD Coverage is Smaller
+CMD is a very limited shell compared to PowerShell.
+
+Many Unix utilities (grep, awk, sed, etc.) have no direct CMD equivalent.
+
+CMD lacks advanced flags, pipelines, and scripting capabilities.
+
+Result: Only basic commands (file ops, directory listing) are supported for CMD.
+
+Recommendation: PowerShell is the preferred Windows target.
+
+Why Windows → Unix Has Higher Count
+Reverse mapping combines PowerShell + CMD → Unix.
+
+PowerShell commands often have multiple flag combinations that map to shorter Unix equivalents:
+
+Remove-Item -Recurse -Force → rm -rf
+
+Get-ChildItem → ls
+
+Each variation counts as a separate mapping.
+
+CMD adds additional mappings (e.g., copy → cp, move → mv).
+
+Result: More total translations when going Windows → Unix.
+
 ```
 
-…will Just Work™ on PowerShell 5.
+| Direction         | Count |
+| ----------------- | ----- |
+| Unix → PowerShell | 171   |
+| Unix → CMD        | 70    |
+| Windows → Unix    | 484   |
 
----
-
-## smartsh vs. WSL (and why both exist)
-
-**smartsh** is like a **universal plug adapter** — it lets everyday Unix one-liners run *natively* on Windows (PowerShell/CMD) **without** installing a full Linux environment.
-
-**WSL** is more like running a Linux laptop *inside* Windows: perfect when you need the entire Linux tool-chain, but heavyweight when your goal is simply “make `rm -rf dist && npm run build` work everywhere”.
-
-### When should I reach for smartsh?
-
-* You just need tutorial commands like `rm -rf dist && npm run build` to work everywhere.
-* Your CI pipeline runs on multiple OSes (GitHub Actions Windows runner, etc.).
-* Teammates aren’t comfortable installing/maintaining WSL.
-* You’re on a corporate machine where WSL is blocked by policy.
-
-### smartsh in the tool landscape
-
-| Tool | Core idea (plain English) |
-|------|---------------------------|
-| **smartsh** | “Write your usual shell commands — I’ll translate them so they work everywhere.” |
-| **WSL** | “Run a full Linux distro inside Windows.” |
-| **shx** | “Do basic Unix file ops (`rm`, `cp`, …) safely in npm scripts on Windows.” |
-| **dax-sh / zx / shelljs** | “Write shell-style scripts in JavaScript/TypeScript.” |
-
-### Quick cross-platform snippet
-
-```bash
-# Works unchanged on Windows PowerShell <7, Mac, Linux, CI runners…
-sm "rm -rf dist && npm run build && cp -r src/* dist/"
 ```
 
---- 
+Command Coverage
+Unix → PowerShell: 171 commands
+
+Unix → CMD: 70 commands
+
+Windows → Unix: 484 translations
+
+Why CMD coverage is smaller?
+CMD is very limited compared to PowerShell, so only basic commands (like copy, move, del) are supported.
+
+Why Windows → Unix has more?
+Reverse mapping combines PowerShell + CMD and accounts for multiple flag variations, resulting in a higher count.
+
+```

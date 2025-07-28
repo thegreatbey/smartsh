@@ -14,7 +14,7 @@ export interface EnhancedToken extends TokenInfo {
 
 export type TokenRole = "cmd" | "flag" | "arg" | "op";
 
-export interface RoleToken extends TokenInfo {
+export interface RoleToken extends EnhancedToken {
   role: TokenRole;
 }
 
@@ -174,17 +174,74 @@ function mapToOriginalPositions(tokens: TokenInfo[], cmd: string): EnhancedToken
 function reconstructSpecialConstructs(tokens: EnhancedToken[], cmd: string): EnhancedToken[] {
   let result = [...tokens];
   
-  // Step 1: Reconstruct here-documents (<< 'EOF')
+  // Step 1: Reconstruct command substitution ($(...))
+  result = reconstructCommandSubstitution(result);
+  
+  // Step 2: Reconstruct here-documents (<< 'EOF')
   result = reconstructHereDocs(result);
   
-  // Step 2: Reconstruct process substitution (<(...))
+  // Step 3: Reconstruct process substitution (<(...))
   result = reconstructProcessSubs(result);
   
-  // Step 3: Reconstruct function definitions (())
+  // Step 4: Reconstruct function definitions (())
   result = reconstructFunctionDefs(result);
   
-  // Step 4: Reconstruct environment variables (${...})
+  // Step 5: Reconstruct environment variables (${...})
   result = reconstructEnvVars(result, cmd);
+  
+  // Step 6: Reconstruct redirection operators (2>, etc.)
+  result = reconstructRedirections(result);
+  
+  // Step 7: Reconstruct escaped operators (\&&, etc.)
+  result = reconstructEscapedOperators(result);
+  
+  return result;
+}
+
+/**
+ * Reconstruct command substitution: $(...)
+ */
+function reconstructCommandSubstitution(tokens: EnhancedToken[]): EnhancedToken[] {
+  const result: EnhancedToken[] = [];
+  
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i].value === "$" && i + 1 < tokens.length && tokens[i + 1].value === "(") {
+      // Found $(, find matching closing )
+      let parenDepth = 1;
+      let j = i + 2;
+      
+      while (j < tokens.length && parenDepth > 0) {
+        if (tokens[j].value === "(") parenDepth++;
+        if (tokens[j].value === ")") parenDepth--;
+        j++;
+      }
+      
+      if (parenDepth === 0) {
+        // Found complete $(...), merge all tokens
+        const cmdSubToken: EnhancedToken = {
+          value: "$(",
+          start: tokens[i].start,
+          end: tokens[j - 1].end,
+          originalText: tokens.slice(i, j).map(t => t.originalText).join(""),
+          reconstructedValue: "$(",
+          needsReconstruction: false
+        };
+        
+        // Add the command inside
+        for (let k = i + 2; k < j - 1; k++) {
+          cmdSubToken.reconstructedValue += tokens[k].value + " ";
+        }
+        cmdSubToken.reconstructedValue = cmdSubToken.reconstructedValue.trim() + ")";
+        
+        result.push(cmdSubToken);
+        i = j - 1; // Skip all processed tokens
+      } else {
+        result.push(tokens[i]);
+      }
+    } else {
+      result.push(tokens[i]);
+    }
+  }
   
   return result;
 }
@@ -207,10 +264,10 @@ function reconstructHereDocs(tokens: EnhancedToken[]): EnhancedToken[] {
         needsReconstruction: false
       };
       
-      // Include the delimiter (e.g., 'EOF')
+      // Include the delimiter (e.g., 'EOF') - NO SPACE
       hereDocToken.end = tokens[i + 1].end;
       hereDocToken.originalText += tokens[i + 1].originalText;
-      hereDocToken.reconstructedValue += " " + tokens[i + 1].value;
+      hereDocToken.reconstructedValue += tokens[i + 1].value;
       i += 1; // Skip the next token
       
       result.push(hereDocToken);
@@ -302,33 +359,107 @@ function reconstructFunctionDefs(tokens: EnhancedToken[]): EnhancedToken[] {
  * Reconstruct environment variables from original text.
  */
 function reconstructEnvVars(tokens: EnhancedToken[], cmd: string): EnhancedToken[] {
-  return tokens.map(token => {
-    // Look for ${...} patterns in the original text
-    const envVarPattern = /\$\{[^}]+\}/g;
-    let reconstructed = token.value;
-    let needsReconstruction = false;
-    
-    // Check if the original text contains environment variables that were stripped
-    if (token.originalText.includes("${")) {
-      // Find all ${...} patterns in the original text
-      const matches = token.originalText.match(envVarPattern) || [];
+  const result: EnhancedToken[] = [];
+  
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i].value === "$" && i + 1 < tokens.length && tokens[i + 1].value === "{") {
+      // Found ${, find matching closing }
+      let braceDepth = 1;
+      let j = i + 2;
       
-      // Replace empty strings or partial matches with the original patterns
-      for (const match of matches) {
-        if (reconstructed === "" || reconstructed === token.originalText.replace(envVarPattern, "")) {
-          reconstructed = token.originalText;
-          needsReconstruction = true;
-          break;
-        }
+      while (j < tokens.length && braceDepth > 0) {
+        if (tokens[j].value === "{") braceDepth++;
+        if (tokens[j].value === "}") braceDepth--;
+        j++;
       }
+      
+      if (braceDepth === 0) {
+        // Found complete ${...}, merge all tokens
+        const envVarToken: EnhancedToken = {
+          value: "${",
+          start: tokens[i].start,
+          end: tokens[j - 1].end,
+          originalText: tokens.slice(i, j).map(t => t.originalText).join(""),
+          reconstructedValue: "${",
+          needsReconstruction: false
+        };
+        
+        // Add the variable name inside
+        for (let k = i + 2; k < j - 1; k++) {
+          envVarToken.reconstructedValue += tokens[k].value + " ";
+        }
+        envVarToken.reconstructedValue = envVarToken.reconstructedValue.trim() + "}";
+        
+        result.push(envVarToken);
+        i = j - 1; // Skip all processed tokens
+      } else {
+        result.push(tokens[i]);
+      }
+    } else {
+      result.push(tokens[i]);
     }
-    
-    return {
-      ...token,
-      reconstructedValue: reconstructed,
-      needsReconstruction
-    };
-  });
+  }
+  
+  return result;
+}
+
+/**
+ * Reconstruct redirection operators (2>, etc.)
+ */
+function reconstructRedirections(tokens: EnhancedToken[]): EnhancedToken[] {
+  const result: EnhancedToken[] = [];
+  
+  for (let i = 0; i < tokens.length; i++) {
+    // Check for redirection patterns like "2" followed by ">"
+    if (tokens[i].value.match(/^\d+$/) && i + 1 < tokens.length && 
+        (tokens[i + 1].value === ">" || tokens[i + 1].value === ">>" || tokens[i + 1].value === "&")) {
+      // Found number followed by redirection operator
+      const redirectionToken: EnhancedToken = {
+        value: tokens[i].value + tokens[i + 1].value,
+        start: tokens[i].start,
+        end: tokens[i + 1].end,
+        originalText: tokens[i].originalText + tokens[i + 1].originalText,
+        reconstructedValue: tokens[i].value + tokens[i + 1].value,
+        needsReconstruction: false
+      };
+      
+      result.push(redirectionToken);
+      i += 1; // Skip the next token
+    } else if (isRedirectionToken(tokens[i].value)) {
+      // Already a complete redirection token
+      result.push(tokens[i]);
+    } else {
+      result.push(tokens[i]);
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Reconstruct escaped operators (\&&, etc.)
+ */
+function reconstructEscapedOperators(tokens: EnhancedToken[]): EnhancedToken[] {
+  const result: EnhancedToken[] = [];
+
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i].value.startsWith("\\") && i + 1 < tokens.length && isOperatorStart(tokens[i + 1].value)) {
+      // Found escaped operator like \&&
+      const escapedOpToken: EnhancedToken = {
+        value: tokens[i].value + tokens[i + 1].value,
+        start: tokens[i].start,
+        end: tokens[i + 1].end,
+        originalText: tokens[i].originalText + tokens[i + 1].originalText,
+        reconstructedValue: tokens[i].value + tokens[i + 1].value,
+        needsReconstruction: false
+      };
+      result.push(escapedOpToken);
+      i += 1; // Skip the next token
+    } else {
+      result.push(tokens[i]);
+    }
+  }
+  return result;
 }
 
 const OPS = new Set(["&&", "||", "|", ";", "|&"]);
@@ -347,28 +478,88 @@ export function tagTokenRoles(tokens: TokenInfo[]): RoleToken[] {
   let expectCmd = true; // start of command or after connector/semicolon/pipe
 
   for (const t of tokens) {
+    const enhancedToken: EnhancedToken = {
+      ...t,
+      originalText: t.value,
+      reconstructedValue: t.value,
+      needsReconstruction: false
+    };
+
     if (OPS.has(t.value)) {
-      out.push({ ...t, role: "op" });
+      out.push({ ...enhancedToken, role: "op" });
       expectCmd = true;
       continue;
     }
 
     if (isRedirectionToken(t.value)) {
-      out.push({ ...t, role: "arg" });
+      out.push({ ...enhancedToken, role: "arg" });
       continue;
     }
 
     if (expectCmd) {
-      out.push({ ...t, role: "cmd" });
+      out.push({ ...enhancedToken, role: "cmd" });
       expectCmd = false;
       continue;
     }
 
     if (t.value.startsWith("-") && t.value.length > 1 && t.quoteType === undefined) {
-      out.push({ ...t, role: "flag" });
+      out.push({ ...enhancedToken, role: "flag" });
     } else {
-      out.push({ ...t, role: "arg" });
+      out.push({ ...enhancedToken, role: "arg" });
     }
   }
   return out;
+} 
+
+/**
+ * Enhanced tokenization with reconstruction and role tagging.
+ */
+export function tokenizeWithPosEnhancedAndRoles(cmd: string): RoleToken[] {
+  const enhancedTokens = tokenizeWithPosEnhanced(cmd);
+  return enhancedTokens.map(token => ({
+    ...token,
+    role: determineRole(token, enhancedTokens)
+  }));
+}
+
+/**
+ * Determine the role of a token based on context.
+ */
+function determineRole(token: EnhancedToken, allTokens: EnhancedToken[]): TokenRole {
+  // Use the reconstructed value for role determination
+  const value = token.reconstructedValue;
+  
+  // Check if it's an operator
+  if (OPS.has(value)) {
+    return "op";
+  }
+  
+  // Check if it's a redirection token
+  if (isRedirectionToken(value)) {
+    return "arg";
+  }
+  
+  // Check if it's a flag (starts with - and not quoted)
+  if (value.startsWith("-") && value.length > 1 && token.quoteType === undefined) {
+    return "flag";
+  }
+  
+  // For the first token or after operators, it's likely a command
+  const tokenIndex = allTokens.indexOf(token);
+  if (tokenIndex === 0) {
+    return "cmd";
+  }
+  
+  // Check if the previous token was an operator
+  for (let i = tokenIndex - 1; i >= 0; i--) {
+    if (OPS.has(allTokens[i].reconstructedValue)) {
+      return "cmd";
+    }
+    if (allTokens[i].reconstructedValue === ";" || allTokens[i].reconstructedValue === "|") {
+      return "cmd";
+    }
+  }
+  
+  // Default to argument
+  return "arg";
 } 
