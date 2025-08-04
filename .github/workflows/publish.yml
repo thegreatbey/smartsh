@@ -24,8 +24,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build project (disable SWC completely)
-        run: npx tsup --no-swc
+      - name: Build project (disable SWC in CI)
+        run: npm run build -- --minify false
 
       - name: Run tests
         run: npm test
