@@ -24,9 +24,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # ✅ Key fix: Apply SWC fallback env inline during build
-      - name: Build project (force SWC JS fallback)
-        run: SWC_NODEJS_FORCE_JSC=true npm run build
+      - name: Build project (use esbuild instead of SWC)
+        run: TSUP_SKIP_ESM_SWCRC=true TSUP_SKIP_SWCRC=true npm run build
 
       - name: Run tests
         run: npm test
