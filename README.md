@@ -2,17 +2,17 @@
 
 A tiny cross-shell command runner that enables Unix-style commands and connectors (&&, ||) on any OS or shell, with automatic translation of common Unix commands to native PowerShell equivalents.
 
-Smartsh v0.3.7:
-
 ---
 
 ````markdown
 # ⚡ Smartsh (`sm`) – Universal Cross-Shell Command Translator
 
-[![npm version](https://img.shields.io/npm/v/smartsh.svg)](https://www.npmjs.com/package/smartsh)
-[![Tests](https://img.shields.io/badge/tests-251%20passing-brightgreen.svg)](#)
-[![Size](https://img.shields.io/badge/size-~190KB-blue.svg)](#)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](#)
+[![Tests](https://img.shields.io/github/actions/workflow/status/thegreatbey/smartsh/ci.yml?branch=multi&label=Tests)](https://github.com/thegreatbey/smartsh/actions)
+[![Build & Publish](https://img.shields.io/github/actions/workflow/status/thegreatbey/smartsh/publish.yml?branch=multi&label=Build%20%26%20Publish)](https://github.com/thegreatbey/smartsh/actions)
+[![npm version](https://img.shields.io/npm/v/smartsh)](https://www.npmjs.com/package/smartsh)
+[![Size](https://img.shields.io/bundlephobia/minzip/smartsh?label=size&color=green)](https://bundlephobia.com/package/smartsh)
+[![License: MIT](https://img.shields.io/npm/l/smartsh)](LICENSE)
+
 
 ---
 
@@ -116,7 +116,7 @@ pnpm test
 
 ---
 
-## 🔥 What’s New in v0.3.7
+## 🔥 What’s Cool
 
 * ✅ **Bidirectional Translation Added**
 * ✅ **PowerShell → Unix + CMD → Unix support**
@@ -165,7 +165,7 @@ npm publish --access public
 
 ## 📜 License
 
-MIT © 2025 Smartsh Contributors
+MIT © 2025 cavani21 & Smartsh Contributors
 
 ```
 Command Coverage Details
