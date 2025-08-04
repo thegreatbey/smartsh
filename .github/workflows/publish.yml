@@ -24,11 +24,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Disable SWC native binding (use JS fallback)
-        run: echo "SWC_NODEJS_FORCE_JSC=true" >> $GITHUB_ENV
-
-      - name: Build project
-        run: npm run build
+      # ✅ Key fix: Apply SWC fallback env inline during build
+      - name: Build project (force SWC JS fallback)
+        run: SWC_NODEJS_FORCE_JSC=true npm run build
 
       - name: Run tests
         run: npm test
