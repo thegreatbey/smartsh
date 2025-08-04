@@ -3,7 +3,7 @@ name: CI & Publish
 on:
   push:
     branches:
-      - multi # Change to 'main' when ready
+      - multi # Change to 'main' later
 
 jobs:
   build-test-publish:
@@ -24,12 +24,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Rebuild SWC binaries (Linux fix)
-        run: npm rebuild @swc/core --ignore-scripts
-
-      - name: Force SWC build from source (fallback)
-        run: npm rebuild @swc/core --build-from-source
-        if: failure()
+      - name: Disable SWC native binding (use JS fallback)
+        run: echo "SWC_NODEJS_FORCE_JSC=true" >> $GITHUB_ENV
 
       - name: Build project
         run: npm run build
