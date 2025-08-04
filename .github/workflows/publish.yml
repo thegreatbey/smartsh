@@ -25,10 +25,11 @@ jobs:
         run: npm ci
 
       - name: Rebuild SWC binaries (fix Linux issue)
-  	run: npm rebuild @swc/core --ignore-scripts
+        run: npm rebuild @swc/core --ignore-scripts
 
       - name: Build project
-  	run: npm run build
+        run: npm run build
+
 
       - name: Run tests
         run: npm test
