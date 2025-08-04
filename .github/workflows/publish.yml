@@ -3,7 +3,7 @@ name: CI & Publish
 on:
   push:
     branches:
-      - multi 
+      - multi # Change to 'main' when ready
 
 jobs:
   build-test-publish:
@@ -26,6 +26,10 @@ jobs:
 
       - name: Rebuild SWC binaries (Linux fix)
         run: npm rebuild @swc/core --ignore-scripts
+
+      - name: Force SWC build from source (fallback)
+        run: npm rebuild @swc/core --build-from-source
+        if: failure()
 
       - name: Build project
         run: npm run build
@@ -58,3 +62,4 @@ jobs:
       - name: Publish to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
