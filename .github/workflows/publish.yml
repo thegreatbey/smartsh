@@ -34,6 +34,7 @@ jobs:
         run: npm test
         env:
           NODE_OPTIONS: "--experimental-vm-modules"
+          ROLLUP_NO_NATIVE: '1'
 
       - name: Determine version bump
         id: bump_type
