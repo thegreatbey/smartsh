@@ -3,7 +3,7 @@ name: CI & Publish
 on:
   push:
     branches:
-      - multi # Change to main later if needed
+      - multi
 
 jobs:
   build-test-publish:
@@ -21,8 +21,8 @@ jobs:
           node-version: 22
           registry-url: 'https://registry.npmjs.org/'
 
-      - name: Install dependencies without SWC
-        run: npm install --omit=optional
+      - name: Install dependencies
+        run: npm install --omit=optional --include=dev
 
       - name: Ensure tsup is executable
         run: chmod +x node_modules/.bin/tsup
