@@ -21,7 +21,7 @@ jobs:
           node-version: 22
           registry-url: 'https://registry.npmjs.org/'
 
-      - name: Remove node_modules and npm cache
+      - name: Remove cache and node_modules
         run: |
           rm -rf node_modules
           npm cache clean --force
@@ -30,10 +30,10 @@ jobs:
         run: npm ci
 
       - name: Uninstall SWC
-        run: npm uninstall @swc/core
+        run: npm uninstall @swc/core || true
 
       - name: Build project
-        run: npm run build
+        run: NO_SWC=true npm run build
 
       - name: Run tests
         run: npm test
