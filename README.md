@@ -7,7 +7,7 @@ A tiny cross-shell command runner that enables Unix-style commands and connector
 ````markdown
 # ⚡ Smartsh (`sm`) – Universal Cross-Shell Command Translator
 
-[![Tests](https://img.shields.io/github/actions/workflow/status/thegreatbey/smartsh/ci.yml?branch=multi&label=Tests)](https://github.com/thegreatbey/smartsh/actions)
+[![Tests](https://img.shields.io/github/actions/workflow/status/thegreatbey/smartsh/test-npm.yml?branch=multi&label=Tests)](https://github.com/thegreatbey/smartsh/actions)
 [![Build & Publish](https://img.shields.io/github/actions/workflow/status/thegreatbey/smartsh/publish.yml?branch=multi&label=Build%20%26%20Publish)](https://github.com/thegreatbey/smartsh/actions)
 [![npm version](https://img.shields.io/npm/v/smartsh)](https://www.npmjs.com/package/smartsh)
 [![Size](https://img.shields.io/bundlephobia/minzip/smartsh?label=size&color=green)](https://bundlephobia.com/package/smartsh)
