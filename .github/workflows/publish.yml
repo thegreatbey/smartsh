@@ -3,7 +3,7 @@ name: CI & Publish
 on:
   push:
     branches:
-      - multi # Change to 'main' later
+      - multi
 
 jobs:
   build-test-publish:
@@ -21,11 +21,9 @@ jobs:
           node-version: 22
           registry-url: 'https://registry.npmjs.org/'
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Remove SWC dependency
-        run: npm uninstall @swc/core
+      # ✅ Install without optional dependencies (no SWC)
+      - name: Install dependencies without SWC
+        run: npm install --omit=optional
 
       - name: Build project
         run: npm run build
