@@ -32,11 +32,9 @@
     "node": ">=14"
   },
   "devDependencies": {
-    "@swc/core": "^1.12.11",
     "@types/node": "^24.0.10",
     "tsup": "^8.1.1",
     "typescript": "^5.4.0",
     "vitest": "^3.2.4"
-  },
-  "dependencies": {}
+  }
 }

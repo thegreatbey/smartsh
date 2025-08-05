@@ -18,22 +18,17 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
           registry-url: 'https://registry.npmjs.org/'
-
-      - name: Remove cache and node_modules
-        run: |
-          rm -rf node_modules
-          npm cache clean --force
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Uninstall SWC
-        run: npm uninstall @swc/core || true
-
-      - name: Build project
-        run: NO_SWC=true npm run build
+      - name: Build project with esbuild
+        run: |
+          npx esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/index.js
+          npx esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/index.mjs
+          npx tsc --emitDeclarationOnly
 
       - name: Run tests
         run: npm test
