@@ -21,11 +21,14 @@ jobs:
           node-version: 22
           registry-url: 'https://registry.npmjs.org/'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies without optional
+        run: NODE_ENV=development npm ci --omit=optional
+
+      - name: Ensure tsup is executable
+        run: chmod +x node_modules/.bin/tsup
 
       - name: Build project
-        run: TSUP_DISABLE_SWC=true npm run build
+        run: npm run build
 
       - name: Run tests
         run: npm test
