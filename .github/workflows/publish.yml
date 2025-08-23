@@ -24,18 +24,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build project with esbuild
-        run: |
-          npx esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/index.js
-          npx esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/index.mjs
-          npx tsc --emitDeclarationOnly
-
-      - name: Run tests
-        run: npm test
-        env:
-          NODE_OPTIONS: "--experimental-vm-modules"
-          ROLLUP_NO_NATIVE: '1'
-
       - name: Determine version bump
         id: bump_type
         run: |
@@ -48,12 +36,34 @@ jobs:
             echo "type=patch" >> $GITHUB_OUTPUT
           fi
 
+      - name: Ensure clean working tree
+        run: |
+          echo "=== BEFORE CLEAN ==="
+          git status --porcelain
+          git restore --staged .
+          git checkout -- .
+          git clean -fdx
+          echo "=== AFTER CLEAN ==="
+          git status --porcelain
+
       - name: Bump version, tag, and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           npm version ${{ steps.bump_type.outputs.type }} -m "chore: release %s [skip ci]"
           git push --follow-tags
+
+      - name: Build project with esbuild
+        run: |
+          npx esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/index.js
+          npx esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/index.mjs
+          npx tsc --emitDeclarationOnly
+
+      - name: Run tests
+        run: npm test
+        env:
+          NODE_OPTIONS: "--experimental-vm-modules"
+          ROLLUP_NO_NATIVE: '1'
 
       - name: Publish to npm
         env:
