@@ -266,17 +266,6 @@ export const POWERSHELL_TO_UNIX_MAPPINGS: BidirectionalMapping[] = [
     forceArgs: true,
   },
   {
-    unix: "which",
-    powershell: "Get-Command",
-    cmd: "where",
-    flagMappings: {
-      unix: {},
-      powershell: {},
-      cmd: {}
-    },
-    forceArgs: true,
-  },
-  {
     unix: "find",
     powershell: "Get-ChildItem -Recurse",
     cmd: "dir /s",

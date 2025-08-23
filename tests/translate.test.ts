@@ -273,4 +273,12 @@ describe("translateCommand with Unix commands", () => {
       "ForEach-Object { $_.Split()[0] }"
     );
   });
+});
+
+describe("translateCommand CMD → Unix", () => {
+  const unixShellOptions = { type: "bash", supportsConditionalConnectors: true, needsUnixTranslation: false, targetShell: "bash" } as const;
+
+  test("translates del /s /q to rm -r -f", () => {
+    expect(translateCommand("del /s /q test", unixShellOptions)).toBe("rm -r -f test");
+  });
 }); 

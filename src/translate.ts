@@ -614,12 +614,26 @@ function translateSingleSegmentBidirectional(segment: string, sourceFormat: stri
     return segment;
   }
 
-  const tokens = roleTokens.map((t) => t.reconstructedValue);
-  const flagTokens = roleTokens.filter((t) => t.role === "flag").map((t) => t.reconstructedValue);
-  const argTokens = roleTokens.filter((t) => t.role === "arg").map((t) => t.reconstructedValue);
+  // Reclassify CMD-style slash flags as flags (e.g., /s, /q) when translating from CMD
+  const adjustedRoleTokens = sourceFormat === "cmd"
+    ? roleTokens.map((t) => {
+        if (
+          t.role === "arg" &&
+          t.quoteType === undefined &&
+          /^\/[A-Za-z]+$/.test(t.reconstructedValue)
+        ) {
+          return { ...t, role: "flag" as const };
+        }
+        return t;
+      })
+    : roleTokens;
+
+  const tokens = adjustedRoleTokens.map((t) => t.reconstructedValue);
+  const flagTokens = adjustedRoleTokens.filter((t) => t.role === "flag").map((t) => t.reconstructedValue);
+  const argTokens = adjustedRoleTokens.filter((t) => t.role === "arg").map((t) => t.reconstructedValue);
 
   // First command token gives us the command name
-  const cmdToken = roleTokens.find((t) => t.role === "cmd");
+  const cmdToken = adjustedRoleTokens.find((t) => t.role === "cmd");
   if (!cmdToken) return segment;
   const cmd = cmdToken.reconstructedValue;
 
@@ -651,7 +665,10 @@ function translateSingleSegmentBidirectional(segment: string, sourceFormat: stri
   }
 
   // Use bidirectional translation for all other cases (PowerShell → Unix, CMD → Unix, etc.)
-  const result = translateBidirectional(cmd, sourceFormat, targetShell, flagTokens, argTokens);
+  // Normalize Unix-like target shells to generic "unix" for mapping lookup
+  const unixLikeTargets = new Set(["bash", "ash", "dash", "zsh", "fish", "ksh", "tcsh"]);
+  const normalizedTarget = unixLikeTargets.has(targetShell as any) ? "unix" : targetShell;
+  const result = translateBidirectional(cmd, sourceFormat, normalizedTarget, flagTokens, argTokens);
   return result;
 }
 

@@ -3,13 +3,13 @@ import { translateBidirectional, getBidirectionalMapping, POWERSHELL_TO_UNIX_MAP
 
 describe("Comprehensive Bidirectional Translation Verification", () => {
   describe("Mapping Count Verification", () => {
-    test("should have exactly 241 command mappings", () => {
-      expect(POWERSHELL_TO_UNIX_MAPPINGS.length).toBe(241);
+    test("should have exactly 240 command mappings", () => {
+      expect(POWERSHELL_TO_UNIX_MAPPINGS.length).toBe(240);
     });
 
-    test("should have 964 total translation paths (241 × 4 directions)", () => {
+    test("should have 960 total translation paths (240 × 4 directions)", () => {
       const totalPaths = POWERSHELL_TO_UNIX_MAPPINGS.length * 4; // unix→powershell, unix→cmd, powershell→unix, cmd→unix
-      expect(totalPaths).toBe(964);
+      expect(totalPaths).toBe(960);
     });
 
     test("each mapping should have all three shell commands defined", () => {
