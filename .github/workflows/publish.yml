@@ -68,16 +68,20 @@ jobs:
 
       - name: Build project with esbuild
         run: |
-          # index (CJS + ESM) + types
-          npx esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/index.js
-          npx esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/index.mjs
+          # Debug: confirm esbuild is installed and show perms
+          ls -l node_modules/.bin/esbuild || true
+          node -p "require('esbuild').version"
+
+          # index (CJS + ESM) + types — call esbuild via Node to avoid exec perm issues
+          node node_modules/esbuild/bin/esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/index.js
+          node node_modules/esbuild/bin/esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/index.mjs
           npx tsc --emitDeclarationOnly
 
           # cli (CJS) with shebang -> dist/cli.js for package.json "bin"
-          npx esbuild src/cli.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/cli.js --banner:js="#!/usr/bin/env node"
+          node node_modules/esbuild/bin/esbuild src/cli.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/cli.js --banner:js="#!/usr/bin/env node"
           chmod +x dist/cli.js
 
-          # sanity check: show built files
+          # sanity check
           ls -lah dist
 
       - name: Run tests
