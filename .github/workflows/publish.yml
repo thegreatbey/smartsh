@@ -5,6 +5,10 @@ on:
     branches:
       - multi
 
+permissions:
+  contents: write  # allow pushing tags/commits from CI
+  id-token: write #for provenenace
+
 jobs:
   build-test-publish:
     runs-on: ubuntu-latest
@@ -20,6 +24,9 @@ jobs:
         with:
           node-version: 20
           registry-url: 'https://registry.npmjs.org/'
+
+      - name: Show npm version #enusure npm supports provenance for sanity
+        run: npm -v
 
       - name: Install dependencies
         run: npm ci
@@ -42,30 +49,51 @@ jobs:
           git status --porcelain
           git restore --staged .
           git checkout -- .
-          git clean -fdx
+          git clean -fd
           echo "=== AFTER CLEAN ==="
           git status --porcelain
 
-      - name: Bump version, tag, and push
+      - name: Authenticate git remote with GITHUB_TOKEN
         run: |
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/thegreatbey/smartsh.git
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          npm version ${{ steps.bump_type.outputs.type }} -m "chore: release %s [skip ci]"
-          git push --follow-tags
+
+      - name: Bump version (no tag yet)
+        run: |
+          npm version ${{ steps.bump_type.outputs.type }} --no-git-tag-version
+          NEWVER=$(node -p "require('./package.json').version")
+          echo "NEWVER=$NEWVER" >> $GITHUB_ENV
+          echo "Version set to $NEWVER (no tag yet)."
 
       - name: Build project with esbuild
         run: |
+          # index (CJS + ESM) + types
           npx esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/index.js
           npx esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/index.mjs
           npx tsc --emitDeclarationOnly
 
+          # cli (CJS) with shebang -> dist/cli.js for package.json "bin"
+          npx esbuild src/cli.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/cli.js --banner:js="#!/usr/bin/env node"
+          chmod +x dist/cli.js
+
+          # sanity check: show built files
+          ls -lah dist
+
       - name: Run tests
-        run: npm test
         env:
           NODE_OPTIONS: "--experimental-vm-modules"
           ROLLUP_NO_NATIVE: '1'
+        run: npm test
 
       - name: Publish to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public
+        run: npm publish --access public --provenance
+
+      - name: Commit version, tag, and push
+        run: |
+          git add package.json package-lock.json || true
+          git commit -m "chore: release v${NEWVER}"
+          git tag "v${NEWVER}"
+          git push origin HEAD:multi --follow-tags
