@@ -66,8 +66,20 @@ jobs:
           echo "NEWVER=$NEWVER" >> $GITHUB_ENV
           echo "Version set to $NEWVER (no tag yet)."
 
-      - name: Build (tsup)
-        run: npm run build
+      - name: Build (tsup direct)
+        run: |
+          # Make tsup shim executable and use it directly (avoid PATH/shim perms issues)
+          chmod +x node_modules/.bin/tsup
+
+          # Build both entry points + types (mirrors your package.json "build" script)
+          node_modules/.bin/tsup src/index.ts src/cli.ts --format cjs,esm --sourcemap --dts --clean
+
+          # Inject shebang into CLI (mirrors your "postbuild" script)
+          node -e "const fs=require('fs'),p='dist/cli.js';if(fs.existsSync(p)){let s=fs.readFileSync(p,'utf8');if(!s.startsWith('#!'))fs.writeFileSync(p,'#!/usr/bin/env node\n'+s)}"
+
+          # sanity check
+          ls -lah dist
+
 
       - name: Run tests
         env:
