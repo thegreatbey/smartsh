@@ -66,24 +66,8 @@ jobs:
           echo "NEWVER=$NEWVER" >> $GITHUB_ENV
           echo "Version set to $NEWVER (no tag yet)."
 
-      - name: Build project with esbuild (API)
-        run: |
-          # index (CJS)
-          node -e "const esbuild=require('esbuild'); esbuild.buildSync({entryPoints:['src/index.ts'], bundle:true, platform:'node', target:'node18', format:'cjs', outfile:'dist/index.js'})"
-
-          # index (ESM)
-          node -e "const esbuild=require('esbuild'); esbuild.buildSync({entryPoints:['src/index.ts'], bundle:true, platform:'node', target:'node18', format:'esm', outfile:'dist/index.mjs'})"
-
-          # types
-          npx tsc --emitDeclarationOnly
-
-          # cli (CJS) with shebang
-          node -e "const esbuild=require('esbuild'); esbuild.buildSync({entryPoints:['src/cli.ts'], bundle:true, platform:'node', target:'node18', format:'cjs', outfile:'dist/cli.js', banner:{js:'#!/usr/bin/env node'}})"
-          chmod +x dist/cli.js
-
-          # sanity check
-          ls -lah dist
-
+      - name: Build (tsup)
+        run: npm run build
 
       - name: Run tests
         env:
