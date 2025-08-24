@@ -66,22 +66,24 @@ jobs:
           echo "NEWVER=$NEWVER" >> $GITHUB_ENV
           echo "Version set to $NEWVER (no tag yet)."
 
-      - name: Build project with esbuild
+      - name: Build project with esbuild (API)
         run: |
-          # Make the esbuild shim executable, then use it directly
-          chmod +x node_modules/.bin/esbuild
+          # index (CJS)
+          node -e "const esbuild=require('esbuild'); esbuild.buildSync({entryPoints:['src/index.ts'], bundle:true, platform:'node', target:'node18', format:'cjs', outfile:'dist/index.js'})"
 
-          # index (CJS + ESM) + types
-          node_modules/.bin/esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/index.js
-          node_modules/.bin/esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/index.mjs
+          # index (ESM)
+          node -e "const esbuild=require('esbuild'); esbuild.buildSync({entryPoints:['src/index.ts'], bundle:true, platform:'node', target:'node18', format:'esm', outfile:'dist/index.mjs'})"
+
+          # types
           npx tsc --emitDeclarationOnly
 
-          # cli (CJS) with shebang -> dist/cli.js for package.json "bin"
-          node_modules/.bin/esbuild src/cli.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/cli.js --banner:js="#!/usr/bin/env node"
+          # cli (CJS) with shebang
+          node -e "const esbuild=require('esbuild'); esbuild.buildSync({entryPoints:['src/cli.ts'], bundle:true, platform:'node', target:'node18', format:'cjs', outfile:'dist/cli.js', banner:{js:'#!/usr/bin/env node'}})"
           chmod +x dist/cli.js
 
           # sanity check
           ls -lah dist
+
 
       - name: Run tests
         env:
