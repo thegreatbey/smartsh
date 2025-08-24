@@ -66,25 +66,29 @@ jobs:
           echo "NEWVER=$NEWVER" >> $GITHUB_ENV
           echo "Version set to $NEWVER (no tag yet)."
 
-      - name: Build (tsup direct)
+      # Fix the root cause: npm shims on Linux sometimes lack +x
+      - name: Fix exec bits on shims
+        run: chmod +x node_modules/.bin/* || true
+
+      # Primary build (tsup) — same as local
+      - name: Build (tsup)
+        run: npm run build
+
+      # Sanity checks (keep your "esbuild mindset" without rebuilding)
+      - name: Verify build artifacts
         run: |
-          # Make tsup shim executable and use it directly (avoid PATH/shim perms issues)
-          chmod +x node_modules/.bin/tsup
-
-          # Build both entry points + types (mirrors your package.json "build" script)
-          node_modules/.bin/tsup src/index.ts src/cli.ts --format cjs,esm --sourcemap --dts --clean
-
-          # Inject shebang into CLI (mirrors your "postbuild" script)
-          node -e "const fs=require('fs'),p='dist/cli.js';if(fs.existsSync(p)){let s=fs.readFileSync(p,'utf8');if(!s.startsWith('#!'))fs.writeFileSync(p,'#!/usr/bin/env node\n'+s)}"
-
-          # sanity check
+          test -f dist/index.js
+          test -f dist/index.mjs
+          if [ -f dist/index.d.ts ] || [ -f dist/index.d.mts ]; then echo "types OK"; else echo "Missing type declarations"; exit 1; fi
+          test -f dist/cli.js
+          head -n1 dist/cli.js | grep -q '#!/usr/bin/env node'
           ls -lah dist
 
-
-      - name: Run tests
+      # Tests (vitest) — use the shim now that +x is fixed
+      - name: Run tests (vitest)
         env:
           NODE_OPTIONS: "--experimental-vm-modules"
-          ROLLUP_NO_NATIVE: '1'
+          ROLLUP_NO_NATIVE: "1"
         run: npm test
 
       - name: Publish to npm
