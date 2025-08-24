@@ -68,17 +68,16 @@ jobs:
 
       - name: Build project with esbuild
         run: |
-          # Debug: confirm esbuild is installed and show perms
-          ls -l node_modules/.bin/esbuild || true
-          node -p "require('esbuild').version"
+          # Make the esbuild shim executable, then use it directly
+          chmod +x node_modules/.bin/esbuild
 
-          # index (CJS + ESM) + types — call esbuild via Node to avoid exec perm issues
-          node node_modules/esbuild/bin/esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/index.js
-          node node_modules/esbuild/bin/esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/index.mjs
+          # index (CJS + ESM) + types
+          node_modules/.bin/esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/index.js
+          node_modules/.bin/esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/index.mjs
           npx tsc --emitDeclarationOnly
 
           # cli (CJS) with shebang -> dist/cli.js for package.json "bin"
-          node node_modules/esbuild/bin/esbuild src/cli.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/cli.js --banner:js="#!/usr/bin/env node"
+          node_modules/.bin/esbuild src/cli.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/cli.js --banner:js="#!/usr/bin/env node"
           chmod +x dist/cli.js
 
           # sanity check
