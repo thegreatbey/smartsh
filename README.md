@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="smartsh_icon_optim.png" alt="smartsh logo" width="200"/>
+</p>
+
 # smartsh (alias: `sm`)
 
 A tiny cross-shell command runner that enables Unix-style commands and connectors (&&, ||) on any OS or shell, with automatic translation of common Unix commands to native PowerShell equivalents.
@@ -7,11 +11,14 @@ A tiny cross-shell command runner that enables Unix-style commands and connector
 ````markdown
 # ⚡ Smartsh (`sm`) – Universal Cross-Shell Command Translator
 
-[![Tests](https://img.shields.io/github/actions/workflow/status/thegreatbey/smartsh/test-npm.yml?branch=multi&label=Tests)](https://github.com/thegreatbey/smartsh/actions)
-[![Build & Publish](https://img.shields.io/github/actions/workflow/status/thegreatbey/smartsh/publish.yml?branch=multi&label=Build%20%26%20Publish)](https://github.com/thegreatbey/smartsh/actions)
-[![npm version](https://img.shields.io/npm/v/smartsh)](https://www.npmjs.com/package/smartsh)
-[![Size](https://img.shields.io/bundlephobia/minzip/smartsh?label=size&color=green)](https://bundlephobia.com/package/smartsh)
+[![Install](https://img.shields.io/badge/Install-npm%20i%20--g%20smartsh-CB3837?logo=npm)](https://www.npmjs.com/package/smartsh)
+[![npm version](https://img.shields.io/npm/v/smartsh?logo=npm)](https://www.npmjs.com/package/smartsh)
+[![Downloads](https://img.shields.io/npm/dm/smartsh)](https://www.npmjs.com/package/smartsh)
+[![Install size](https://packagephobia.com/badge?p=smartsh)](https://packagephobia.com/result?p=smartsh)
+[![Build & Publish](https://img.shields.io/github/actions/workflow/status/thegreatbey/smartsh/publish.yml?branch=main&label=Build%20%26%20Publish)](https://github.com/thegreatbey/smartsh/actions/workflows/publish.yml)
+[![Tests](https://img.shields.io/github/actions/workflow/status/thegreatbey/smartsh/test-npm.yml?branch=main&label=Tests)](https://github.com/thegreatbey/smartsh/actions/workflows/test-npm.yml)
 [![License: MIT](https://img.shields.io/npm/l/smartsh)](LICENSE)
+
 
 
 ---
