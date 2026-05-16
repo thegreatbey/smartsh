@@ -42,17 +42,21 @@ Run **Unix commands on Windows** and **Windows commands on Unix/macOS** without 
   - Built: **~904 KB**  
   - Published: **~190 KB**  
 - **Zero runtime dependencies**  
-- Tested: **251 tests passing**
+- Tested: **252 tests passing**
 
 ---
 
 ## 📦 Install
 ```bash
-# Global install
+# Global install (npm)
 npm install -g smartsh
+
+# Global install (Bun — same package from the npm registry)
+bun add -g smartsh
 
 # Or use without install
 npx smartsh "rm -rf dist && npm run build"
+bunx smartsh "rm -rf dist && bun run build"
 ````
 
 ---
@@ -106,8 +110,9 @@ sm --reverse "Get-ChildItem | Select-String .ts; echo Done"
 ## 🧪 Tests
 
 ```bash
-pnpm test
-# 16 files, 251 tests — all passing
+bun install
+bun run test
+# 16 files, 252 tests — all passing
 ```
 
 ---
@@ -129,11 +134,13 @@ pnpm test
 * ✅ **PowerShell → Unix + CMD → Unix support**
 * ✅ **484 reverse mappings**
 * ✅ **Size optimization: \~190 KB published**
-* ✅ **251 tests passing, including bidirectional coverage**
+* ✅ **252 tests passing, including bidirectional coverage**
 
 ---
 
 ## 🛠 Dev Commands
+
+Use **`bun install`** once after cloning; **`bun.lock`** is the source of truth (no `package-lock.json`, no `pnpm-lock.yaml`).
 
 ### Clean old builds
 
@@ -161,7 +168,7 @@ rm -rf smartsh-*.tgz dist
 
 ```bash
 npm version patch
-pnpm build
+bun run build
 git add -A
 git commit -m "update bidirectional support"
 git push origin main
