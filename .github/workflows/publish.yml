@@ -58,12 +58,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Bump version (no tag yet)
+      - name: Bump version (atomic)
         run: |
-          npm version ${{ steps.bump_type.outputs.type }} --no-git-tag-version
-          NEWVER=$(node -p "require('./package.json').version")
-          echo "NEWVER=$NEWVER" >> $GITHUB_ENV
-          echo "Version set to $NEWVER (no tag yet)."
+          npm version ${{ steps.bump_type.outputs.type }} -m "chore: release v%s"
+          echo "NEWVER=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
 
       - name: Install dependencies
         run: npm install
@@ -98,9 +96,9 @@ jobs:
         #  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public --provenance
 
-      - name: Commit version, tag, and push
-        run: |
-          git add package.json bun.lock || true
-          git commit -m "chore: release v${NEWVER}"
-          git tag "v${NEWVER}"
-          git push origin HEAD:multi --follow-tags
+      #- name: Commit version, tag, and push
+      #  run: |
+      #    git add package.json bun.lock || true
+      #    git commit -m "chore: release v${NEWVER}"
+      #    git tag "v${NEWVER}"
+      #    git push origin HEAD:multi --follow-tags
