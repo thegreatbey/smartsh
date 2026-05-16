@@ -140,7 +140,7 @@ bun run test
 
 ## 🛠 Dev Commands
 
-Use **`bun install`** once after cloning; **`bun.lock`** is the source of truth (no `package-lock.json`, no `pnpm-lock.yaml`).
+Use **`bun install`** once after cloning; **`bun.lock`** is the source of truth (no `package-lock.json`, no `pnpm-lock.yaml`). **`bunfig.toml`** sets a **hoisted** install layout so **Node** can load **`tsup`** chunk files on Linux CI (Bun’s default layout can break that).
 
 ### Clean old builds
 
