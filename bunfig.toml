@@ -1,3 +1,5 @@
-#tsup (and similar tools) load sibling chunk files under node_modules/tsup/dist; hoisted layout matches what Node expects
+#tsup loads sibling chunk files under node_modules/tsup/dist.
+#hoisted layout matches what Node expects for bun
+
 [install]
 linker = "hoisted"
