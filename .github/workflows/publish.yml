@@ -45,6 +45,17 @@ jobs:
 
           echo "type=$TYPE" >> $GITHUB_OUTPUT
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      #install dependencies
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
