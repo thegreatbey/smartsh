@@ -6,8 +6,8 @@ on:
       - multi
 
 permissions:
-  contents: write  # allow pushing tags/commits from CI
-  id-token: write #for provenenace
+  contents: write
+  id-token: write
 
 jobs:
   build-test-publish:
@@ -23,88 +23,92 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: 'https://registry.npmjs.org/'
 
-      - name: Show npm version #enusure npm supports provenance for sanity
+      - name: Show npm version
         run: npm -v
 
-      #do not run npm install here: "Ensure clean working tree" runs git checkout -- . which used to restore tracked broken files under node_modules/tsup (missing chunk-*.js)
-
+      #version bump
       - name: Determine version bump
-        id: bump_type
+        id: bump
         run: |
+          set -e
+
           COMMIT_MSG=$(git log -1 --pretty=%B)
+
           if [[ "$COMMIT_MSG" == *"#major"* ]]; then
-            echo "type=major" >> $GITHUB_OUTPUT
+            TYPE=major
           elif [[ "$COMMIT_MSG" == *"#minor"* ]]; then
-            echo "type=minor" >> $GITHUB_OUTPUT
+            TYPE=minor
           else
-            echo "type=patch" >> $GITHUB_OUTPUT
+            TYPE=patch
           fi
 
-      - name: Ensure clean working tree
-        run: |
-          echo "=== BEFORE CLEAN ==="
-          git status --porcelain
-          git restore --staged .
-          git checkout -- .
-          git clean -fd
-          echo "=== AFTER CLEAN ==="
-          git status --porcelain
-
-      - name: Authenticate git remote with GITHUB_TOKEN
-        run: |
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/thegreatbey/smartsh.git
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Bump version (atomic)
-        run: |
-          npm version ${{ steps.bump_type.outputs.type }} -m "chore: release v%s"
-          echo "NEWVER=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
-          echo "TAG=v${node -p "require('./package.json').version")" >> $GITHUB_ENV
+          echo "type=$TYPE" >> $GITHUB_OUTPUT
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      #some npm .bin shims on linux lack +x after unpack
-      - name: Fix exec bits on shims
-        run: chmod +x node_modules/.bin/* || true
-
-      # Primary build (tsup) — same as local
-      - name: Build (tsup)
+      - name: Build
         run: npm run build
 
-      # Sanity checks (keep your "esbuild mindset" without rebuilding)
-      - name: Verify build artifacts
-        run: |
-          test -f dist/index.js
-          test -f dist/index.mjs
-          if [ -f dist/index.d.ts ] || [ -f dist/index.d.mts ]; then echo "types OK"; else echo "Missing type declarations"; exit 1; fi
-          test -f dist/cli.js
-          head -n1 dist/cli.js | grep -q '#!/usr/bin/env node'
-          ls -lah dist
-
-      # Tests (vitest) — use the shim now that +x is fixed
-      - name: Run tests (vitest)
+      - name: Run tests
         env:
           NODE_OPTIONS: "--experimental-vm-modules"
           ROLLUP_NO_NATIVE: "1"
         run: npm test
 
-      - name: Publish to npm
-        #env:
-        #  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public --provenance
 
-      #- name: Commit version, tag, and push
-      #  run: |
-      #    git add package.json bun.lock || true
-      #    git commit -m "chore: release v${NEWVER}"
-      #    git tag "v${NEWVER}"
-      #    git push origin HEAD:multi --follow-tags
-
-      - name: Push version tag
+      # Versioning (ONLY after CI passes)
+      - name: Bump version (pre-publish)
+        id: version
         run: |
-          git push origin HEAD:multi 
+          set -e
+
+          npm version ${{ steps.bump.outputs.type }} --no-git-tag-version
+
+          NEWVER=$(node -p "require('./package.json').version")
+
+          echo "new_version=$NEWVER" >> $GITHUB_OUTPUT
+
+
+      - name: Check if version already exists as git tag
+        run: |
+          set -e
+
+          if git rev-parse "v${{ steps.version.outputs.new_version }}" >/dev/null 2>&1; then
+            echo "Tag already exists. Aborting."
+            exit 1
+          fi
+
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # Publish FIRST (atomic gate)
+      - name: Publish to npm (Trusted Publishing)
+        run: |
+          npm publish --access public --provenance
+
+
+      # Only after successful publish:
+      # tag + commit version bump
+      - name: Commit version + tag
+        run: |
+          set -e
+
+          git add package.json package-lock.json
+
+          git commit -m "chore: release v${{ steps.version.outputs.new_version }}"
+
+          git tag "v${{ steps.version.outputs.new_version }}"
+
+      # Push only after everything succeeded
+      # (rollback-safe boundary)
+      - name: Push changes and tags
+        run: |
+          set -e
+
+          git push origin HEAD:multi
           git push origin --tags
