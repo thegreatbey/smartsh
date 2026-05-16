@@ -141,7 +141,7 @@ bun run test
 
 ## 🛠 Dev Commands
 
-Use **`bun install`** once after cloning; **`bun.lock`** is the source of truth (no `package-lock.json`, no `pnpm-lock.yaml`). **`bunfig.toml`** keeps **hoisted** installs for local **`bun`**. **GitHub Actions** uses **`npm install`** + **`npm run build`** because **`bun install`** has been missing files inside the published **`tsup`** package on Linux runners (broken **`chunk-*.js`** loads).
+Use **`bun install`** once after cloning; **`bun.lock`** is the source of truth (no `package-lock.json`, no `pnpm-lock.yaml`). **`bunfig.toml`** keeps **hoisted** installs for local **`bun`**. **GitHub Actions** uses **`npm install`** + **`npm run build`**. **Never commit `node_modules/`** — tracked partial copies of **`tsup`** used to break CI after `git checkout -- .` (missing **`chunk-*.js`** files).
 
 ### Clean old builds
 

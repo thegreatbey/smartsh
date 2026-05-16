@@ -28,9 +28,7 @@ jobs:
       - name: Show npm version #enusure npm supports provenance for sanity
         run: npm -v
 
-      #bun install on linux has skipped files inside published tsup dist chunks; npm install matches what tsup expects on disk
-      - name: Install dependencies
-        run: npm install
+      #do not run npm install here: "Ensure clean working tree" runs git checkout -- . which used to restore tracked broken files under node_modules/tsup (missing chunk-*.js)
 
       - name: Determine version bump
         id: bump_type
@@ -67,7 +65,10 @@ jobs:
           echo "NEWVER=$NEWVER" >> $GITHUB_ENV
           echo "Version set to $NEWVER (no tag yet)."
 
-      # Fix the root cause: npm shims on Linux sometimes lack +x
+      - name: Install dependencies
+        run: npm install
+
+      #some npm .bin shims on linux lack +x after unpack
       - name: Fix exec bits on shims
         run: chmod +x node_modules/.bin/* || true
 
