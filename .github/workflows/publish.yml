@@ -46,16 +46,16 @@ jobs:
           echo "type=$TYPE" >> $GITHUB_OUTPUT
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Build
-        run: npm run build
+        run: bun run build
 
       - name: Run tests
         env:
           NODE_OPTIONS: "--experimental-vm-modules"
           ROLLUP_NO_NATIVE: "1"
-        run: npm test
+        run: bun run test
 
 
       # Versioning (ONLY after CI passes)
