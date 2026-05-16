@@ -62,6 +62,7 @@ jobs:
         run: |
           npm version ${{ steps.bump_type.outputs.type }} -m "chore: release v%s"
           echo "NEWVER=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
+          echo "TAG=v${node -p "require('./package.json').version")" >> $GITHUB_ENV
 
       - name: Install dependencies
         run: npm install
@@ -106,4 +107,4 @@ jobs:
       - name: Push version tag
         run: |
           git push origin HEAD:multi 
-          git push origin v${NEWVER}
+          git push origin --tags
