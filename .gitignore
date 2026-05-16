@@ -6,4 +6,3 @@ pnpm-workspace.yaml
 *.tgz
 vscode-extension/
 *.zip
-*.pdf
