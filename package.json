@@ -45,12 +45,12 @@
     "provenance": true
   },
   "scripts": {
-    "build": "bun node_modules/tsup/dist/cli-default.js src/index.ts src/cli.ts --format cjs,esm --sourcemap --dts --clean",
+    "build": "tsup src/index.ts src/cli.ts --format cjs,esm --sourcemap --dts --clean",
     "postbuild": "node -e \"const fs=require('fs'),p='dist/cli.js';if(fs.existsSync(p)){let s=fs.readFileSync(p,'utf8');if(!s.startsWith('#!'))fs.writeFileSync(p,'#!/usr/bin/env node\\n'+s)}\"",
-    "dev": "bun node_modules/tsup/dist/cli-default.js --watch",
+    "dev": "tsup --watch",
     "test": "vitest run",
     "bump:patch": "node scripts/bump-patch.js",
     "lint": "tsc --noEmit",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "npm run build"
   }
 }

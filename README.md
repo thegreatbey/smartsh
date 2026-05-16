@@ -112,6 +112,7 @@ sm --reverse "Get-ChildItem | Select-String .ts; echo Done"
 ```bash
 bun install
 bun run test
+# same as CI: npm install && npm test
 # 16 files, 252 tests — all passing
 ```
 
@@ -140,7 +141,7 @@ bun run test
 
 ## 🛠 Dev Commands
 
-Use **`bun install`** once after cloning; **`bun.lock`** is the source of truth (no `package-lock.json`, no `pnpm-lock.yaml`). **`bunfig.toml`** sets a **hoisted** install layout so **Node** can load **`tsup`** chunk files on Linux CI (Bun’s default layout can break that).
+Use **`bun install`** once after cloning; **`bun.lock`** is the source of truth (no `package-lock.json`, no `pnpm-lock.yaml`). **`bunfig.toml`** keeps **hoisted** installs for local **`bun`**. **GitHub Actions** uses **`npm install`** + **`npm run build`** because **`bun install`** has been missing files inside the published **`tsup`** package on Linux runners (broken **`chunk-*.js`** loads).
 
 ### Clean old builds
 
