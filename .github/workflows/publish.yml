@@ -102,3 +102,8 @@ jobs:
       #    git commit -m "chore: release v${NEWVER}"
       #    git tag "v${NEWVER}"
       #    git push origin HEAD:multi --follow-tags
+
+      - name: Push version tag
+        run: |
+          git push origin HEAD:multi 
+          git push origin v${NEWVER}
